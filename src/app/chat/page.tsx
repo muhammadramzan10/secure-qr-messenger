@@ -130,8 +130,8 @@ export default function ChatPage() {
   // Initialize page, get user session and profile details
   useEffect(() => {
     setLogs([
-      createLog("SYSTEM INITIATED — ASYMMETRIC E2E messaging grid"),
-      createLog("[*] Fetching node auth identity...")
+      createLog("Secure Direct Messaging"),
+      createLog("[*] Checking your login status...")
     ]);
     checkAuthAndLoadProfile();
   }, []);
@@ -142,7 +142,7 @@ export default function ChatPage() {
       setUser(user);
       
       if (user) {
-        setLogs((prev) => [...prev, createLog(`[+] Node identity authenticated: ${user.email}`)]);
+        setLogs((prev) => [...prev, createLog(`[+] Logged in as: ${user.email}`)]);
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
@@ -152,16 +152,16 @@ export default function ChatPage() {
         if (!error && data) {
           setProfile(data);
           if (data.public_key && data.private_key_encrypted) {
-            setLogs((prev) => [...prev, createLog("[+] Crypto keys detected. Awaiting private key decrypt passphrase.")]);
+            setLogs((prev) => [...prev, createLog("[+] Encryption keys found. Enter your password to unlock.")]);
           } else {
-            setLogs((prev) => [...prev, createLog("[!] ALERT: Node is UNKEYED. Dynamic asymmetric key pair generation required.")]);
+            setLogs((prev) => [...prev, createLog("[!] No encryption keys yet. You need to set up your keys first.")]);
           }
         }
       } else {
-        setLogs((prev) => [...prev, createLog("[-] Authentication check failed. Guest connection disallowed.")]);
+        setLogs((prev) => [...prev, createLog("[-] Not logged in. Please sign in to use chat.")]);
       }
     } catch (err: any) {
-      setLogs((prev) => [...prev, createLog(`[-] Error checking identity: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Error checking login: ${err.message}`)]);
     } finally {
       setLoadingProfile(false);
     }
@@ -176,26 +176,26 @@ export default function ChatPage() {
     setProvisionError(null);
     setLogs((prev) => [
       ...prev,
-      createLog("[*] Initializing asymmetric key derivation generator..."),
-      createLog("[*] Spawning RSA-OAEP-2048 client key generation thread...")
+      createLog("[*] Generating your encryption keys..."),
+      createLog("[*] Creating a secure key pair...")
     ]);
 
     try {
       // 1. Generate new asymmetric keypair
       const keypair = await generateAsymmetricKeyPair();
-      setLogs((prev) => [...prev, createLog("[+] Key pair generated (RSA-OAEP 2048-bit with SHA-256).")]);
+      setLogs((prev) => [...prev, createLog("[+] Key pair created successfully.")]);
 
       // 2. Export public key as JWK string
       const pubKeyString = await exportPublicKey(keypair.publicKey);
-      setLogs((prev) => [...prev, createLog("[*] Exporting public key matrix...")]);
+      setLogs((prev) => [...prev, createLog("[*] Preparing your public key...")]);
 
       // 3. Encrypt and export private key using password
-      setLogs((prev) => [...prev, createLog("[*] Encrypting private key client-side with PBKDF2 derived key...")]);
+      setLogs((prev) => [...prev, createLog("[*] Encrypting your private key with your password...")]);
       const encPrivateKey = await exportPrivateKey(keypair.privateKey, provisionPassword);
-      setLogs((prev) => [...prev, createLog("[+] Private key successfully sealed.")]);
+      setLogs((prev) => [...prev, createLog("[+] Private key protected successfully.")]);
 
       // 4. Update profiles table
-      setLogs((prev) => [...prev, createLog("[*] Uploading crypto metadata to profile registry...")]);
+      setLogs((prev) => [...prev, createLog("[*] Saving keys to your profile...")]);
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
@@ -211,13 +211,13 @@ export default function ChatPage() {
         throw new Error(updateError.message);
       }
 
-      setLogs((prev) => [...prev, createLog("[+] Profile provisioned successfully! Refreshing status...")]);
+      setLogs((prev) => [...prev, createLog("[+] Keys set up successfully! Loading your profile...")]);
       
       // Reload profile
       await checkAuthAndLoadProfile();
     } catch (err: any) {
       setProvisionError(err.message || "Failed to provision keys.");
-      setLogs((prev) => [...prev, createLog(`[-] Key generation aborted: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Key setup failed: ${err.message}`)]);
     } finally {
       setProvisionLoading(false);
     }
@@ -232,8 +232,8 @@ export default function ChatPage() {
     setUnlockError(null);
     setLogs((prev) => [
       ...prev,
-      createLog("[*] Loading encrypted private key packet from database profile..."),
-      createLog("[*] Deriving decrypt key from passphrase (PBKDF2 SHA-256)...")
+      createLog("[*] Loading your encrypted private key..."),
+      createLog("[*] Generating unlock key from your password...")
     ]);
 
     try {
@@ -247,8 +247,8 @@ export default function ChatPage() {
 
       setLogs((prev) => [
         ...prev,
-        createLog("[+] Key derived. Signature integrity verified."),
-        createLog("[+] Private key unlocked in client-side secure RAM.")
+        createLog("[+] Password accepted. Key unlocked."),
+        createLog("[+] Your private key is now active in this session.")
       ]);
 
       setUnlockedPrivateKey(privKey);
@@ -259,8 +259,8 @@ export default function ChatPage() {
       setUnlockError("Incorrect password. Unable to unlock your chat keys.");
       setLogs((prev) => [
         ...prev, 
-        createLog(`[-] Decryption failed: ${err.message}`),
-        createLog("[-] Passphrase rejected. Ephemeral grid access denied.")
+        createLog(`[-] Could not unlock: ${err.message}`),
+        createLog("[-] Wrong password. Please try again.")
       ]);
     } finally {
       setUnlockLoading(false);
@@ -270,7 +270,7 @@ export default function ChatPage() {
   // Fetch registered profiles for directory sidebar
   const fetchProfiles = async () => {
     if (!user) return;
-    setLogs((prev) => [...prev, createLog("[*] Querying network profiles registry...")]);
+    setLogs((prev) => [...prev, createLog("[*] Loading contacts...")]);
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -280,9 +280,9 @@ export default function ChatPage() {
       if (error) throw error;
 
       setProfiles(data || []);
-      setLogs((prev) => [...prev, createLog(`[+] Loaded ${data?.length || 0} node directory coordinates.`)]);
+      setLogs((prev) => [...prev, createLog(`[+] Found ${data?.length || 0} contacts.`)]);
     } catch (err: any) {
-      setLogs((prev) => [...prev, createLog(`[-] Directory query failed: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Could not load contacts: ${err.message}`)]);
     }
   };
 
@@ -350,7 +350,7 @@ export default function ChatPage() {
       setMessages(decryptedList);
       scrollToBottom();
     } catch (err: any) {
-      setLogs((prev) => [...prev, createLog(`[-] Message sync failed: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Could not load messages: ${err.message}`)]);
     } finally {
       setMessagesLoading(false);
     }
@@ -359,7 +359,7 @@ export default function ChatPage() {
   // Trigger message load when selected partner changes
   useEffect(() => {
     if (selectedPartner) {
-      setLogs((prev) => [...prev, createLog(`[*] Securing channel with node: ${selectedPartner.full_name || selectedPartner.email}`)]);
+      setLogs((prev) => [...prev, createLog(`[*] Opening chat with ${selectedPartner.full_name || selectedPartner.email}...`)]);
       fetchMessages();
       setActiveTab("chat");
     }
@@ -369,7 +369,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!user || !selectedPartner || !unlockedPrivateKey) return;
 
-    setLogs((prev) => [...prev, createLog("[*] Establishing real-time event hook...")]);
+    setLogs((prev) => [...prev, createLog("[*] Connecting to live updates...")]);
     
     const channel = supabase
       .channel(`realtime_chat_${selectedPartner.id}`)
@@ -383,7 +383,7 @@ export default function ChatPage() {
             (newMsg.user_id === user.id && newMsg.recipient_id === selectedPartner.id) ||
             (newMsg.user_id === selectedPartner.id && newMsg.recipient_id === user.id)
           ) {
-            setLogs((prev) => [...prev, createLog("[+] Real-time packet detected. Syncing chat history...")]);
+            setLogs((prev) => [...prev, createLog("[+] New message received! Refreshing chat...")]);
             fetchMessages();
           }
         }
@@ -391,14 +391,14 @@ export default function ChatPage() {
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setRealtimeConnected(true);
-          setLogs((prev) => [...prev, createLog("[+] Real-time subscription synchronized successfully.")]);
+          setLogs((prev) => [...prev, createLog("[+] Live updates connected.")]);
         } else {
           setRealtimeConnected(false);
         }
       });
 
     return () => {
-      setLogs((prev) => [...prev, createLog("[*] Dismantling real-time channel.")]);
+      setLogs((prev) => [...prev, createLog("[*] Disconnecting live updates...")]);
       supabase.removeChannel(channel);
     };
   }, [selectedPartner, unlockedPrivateKey]);
@@ -416,12 +416,12 @@ export default function ChatPage() {
     if (!newMessage.trim() || !selectedPartner || !profile || sendLoading) return;
 
     if (!selectedPartner.public_key) {
-      setLogs((prev) => [...prev, createLog("[-] SEND ERROR: Recipient has no registered public key.")]);
+      setLogs((prev) => [...prev, createLog("[-] Can't send: This contact hasn't set up their encryption keys yet.")]);
       return;
     }
 
     setSendLoading(true);
-    setLogs((prev) => [...prev, createLog("[*] Packaging asymmetric message payload...")]);
+    setLogs((prev) => [...prev, createLog("[*] Encrypting and sending message...")]);
 
     try {
       // Import public keys
@@ -472,7 +472,7 @@ export default function ChatPage() {
       });
 
       // 6. Transmit to Supabase
-      setLogs((prev) => [...prev, createLog("[*] Uploading encrypted envelope to database grid...")]);
+      setLogs((prev) => [...prev, createLog("[*] Uploading encrypted message...")]);
       
       const { error: sendError } = await supabase
         .from("messages")
@@ -492,12 +492,12 @@ export default function ChatPage() {
 
       if (sendError) throw sendError;
 
-      setLogs((prev) => [...prev, createLog("[+] Transmission complete. Encrypted logs verified.")]);
+      setLogs((prev) => [...prev, createLog("[+] Message sent successfully!")]);
       setNewMessage("");
       fetchMessages();
 
     } catch (err: any) {
-      setLogs((prev) => [...prev, createLog(`[-] Send sequence aborted: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Failed to send: ${err.message}`)]);
     } finally {
       setSendLoading(false);
     }

@@ -83,8 +83,8 @@ function DecryptContent() {
     fetchIp();
 
     setLogs([
-      createLog("SYSTEM INITIATED — QR DEPACKAGING GATEWAY"),
-      createLog("[*] Standing by for secure token submission...")
+      createLog("Secure Message Decryption"),
+      createLog("[*] Waiting for your message link or token...")
     ]);
   }, []);
 
@@ -93,7 +93,7 @@ function DecryptContent() {
     if (urlToken) {
       setActiveToken(urlToken);
       setTokenInput(urlToken);
-      setLogs((prev) => [...prev, createLog(`[*] Decryption token detected in URL headers: ${urlToken}`)]);
+      setLogs((prev) => [...prev, createLog(`[*] Token found in URL: ${urlToken}`)]);
     }
   }, [urlToken]);
 
@@ -117,7 +117,7 @@ function DecryptContent() {
     } catch (_) {}
 
     setActiveToken(extractedToken);
-    setLogs((prev) => [...prev, createLog(`[*] Manual token override committed: ${extractedToken}`)]);
+    setLogs((prev) => [...prev, createLog(`[*] Token entered: ${extractedToken}`)]);
   };
 
   // Step 1: Call RPC to retrieve message and trigger burn-on-read
@@ -128,11 +128,11 @@ function DecryptContent() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev,
-      createLog(`[*] Initiating database handshake for token: ${activeToken}`),
-      createLog("[*] Gathering agent telemetry headers..."),
-      createLog(`    - Node IP: ${clientIp}`),
-      createLog(`    - Platform: ${navigator.platform || "Unknown"}`),
-      createLog(`    - Browser Agent: ${navigator.userAgent.substring(0, 35)}...`)
+      createLog(`[*] Looking up message for token: ${activeToken}`),
+      createLog("[*] Gathering your device details..."),
+      createLog(`    - IP Address: ${clientIp}`),
+      createLog(`    - Device: ${navigator.platform || "Unknown"}`),
+      createLog(`    - Browser: ${navigator.userAgent.substring(0, 35)}...`)
     ]);
 
     try {
@@ -157,10 +157,10 @@ function DecryptContent() {
 
       setLogs((prev) => [
         ...prev,
-        createLog("[+] Handshake completed. Ciphertext envelope downloaded."),
-        createLog(`[!] SECURITY NOTE: Message is active-burn. Destruction status: ${record.is_one_time ? "DESTROYED ON DATABASE" : "RETAINED (PERSISTENT)"}`),
-        createLog(record.is_one_time ? "[!] WARNING: Server record has been shredded. Refreshing or closing this page will lose access forever." : "[*] Persistent QR record saved."),
-        createLog("[*] Awaiting client keyphrase input...")
+        createLog("[+] Message found. Encrypted data loaded."),
+        createLog(`[!] This message is ${record.is_one_time ? "one-time use — it has been deleted from the server" : "persistent — it can be accessed again"}.`),
+        createLog(record.is_one_time ? "[!] Warning: Refreshing or closing this page will lose access forever." : "[*] This message stays available for future access."),
+        createLog("[*] Enter your password to decrypt...")
       ]);
 
       setPayload(record);
@@ -170,8 +170,8 @@ function DecryptContent() {
       setErrorMsg("This message link is invalid, has expired, or has already been opened and deleted.");
       setLogs((prev) => [
         ...prev,
-        createLog(`[-] HANDSHAKE TRANSACTION FAILED: ${err.message}`),
-        createLog("[!] Security policy triggered: Access Blocked / Token Invalidated.")
+        createLog(`[-] Could not find message: ${err.message}`),
+        createLog("[!] The link may be expired, already used, or invalid.")
       ]);
     } finally {
       setLoading(false);
@@ -187,8 +187,8 @@ function DecryptContent() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev,
-      createLog("[*] Initiating client-side decryption engine..."),
-      createLog("[*] Deriving key from password (PBKDF2, Iterations: 100,000)...")
+      createLog("[*] Decrypting your message..."),
+      createLog("[*] Generating decryption key from your password...")
     ]);
 
     try {
@@ -202,9 +202,9 @@ function DecryptContent() {
 
       setLogs((prev) => [
         ...prev,
-        createLog("[+] Key derived successfully. PBKDF2 integrity match verified."),
-        createLog("[*] Executing AES-GCM-256 decryption matrices..."),
-        createLog("[+] DECRYPTION SUCCESSFUL. PLAINTEXT CONSOLE STREAMING ACTIVE.")
+        createLog("[+] Password verified. Key generated."),
+        createLog("[*] Unlocking encrypted message..."),
+        createLog("[+] Message decrypted successfully!")
       ]);
 
       setDecryptedMessage(decrypted);
@@ -215,7 +215,7 @@ function DecryptContent() {
       setLogs((prev) => [
         ...prev,
         createLog(`[-] Decryption failed: ${err.message}`),
-        createLog("[-] Cryptographic signature invalid. Passphrase rejected."),
+        createLog("[-] Wrong password. Please try again."),
         createLog(payload.is_one_time 
           ? "[!] NOTE: Since this was a Burn-on-Read message, it has been shredded on Supabase. You cannot retrieve it again." 
           : "[!] Note: You can retry with a different password.")
@@ -230,7 +230,7 @@ function DecryptContent() {
       navigator.clipboard.writeText(decryptedMessage);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      setLogs((prev) => [...prev, createLog("[+] Decrypted plaintext copied to clipboard.")]);
+      setLogs((prev) => [...prev, createLog("[+] Message copied to clipboard.")]);
     }
   };
 
@@ -394,7 +394,7 @@ function DecryptContent() {
                       setStep(1);
                       setPayload(null);
                       setPassphrase("");
-                      setLogs((prev) => [...prev, createLog("[*] Returned to Step 1. Discarded local cipher memory.")]);
+                      setLogs((prev) => [...prev, createLog("[*] Went back to step 1. Data cleared.")]);
                     }}
                     className="py-3 border border-green-950 hover:border-green-500 text-green-700 hover:text-green-400 font-bold text-xs uppercase tracking-widest transition-all duration-300 rounded flex items-center justify-center gap-2 cursor-pointer"
                   >
@@ -439,7 +439,7 @@ function DecryptContent() {
                       setPayload(null);
                       setPassphrase("");
                       setDecryptedMessage(null);
-                      setLogs((prev) => [...prev, createLog("[*] System reset. Clearing decryption cache.")]);
+                      setLogs((prev) => [...prev, createLog("[*] Form reset. Ready to decrypt another message.")]);
                     }}
                     className="py-3.5 px-6 border border-green-950 hover:border-green-500 text-green-700 hover:text-green-400 font-bold text-xs uppercase tracking-wider transition-all duration-300 rounded cursor-pointer text-center"
                   >

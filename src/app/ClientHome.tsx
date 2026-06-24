@@ -117,7 +117,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
             // Check for pending keys generated during a signup that required email confirmation
             const pendingKeysStr = localStorage.getItem(`pending_crypto_keys_${user.id}`);
             if (pendingKeysStr) {
-              setLogs((prev) => [...prev, createLog("[*] Found pending local keypair. Injecting to profile table...")]);
+              setLogs((prev) => [...prev, createLog("[*] Found saved encryption keys. Syncing to your profile...")]);
               const { pubKeyString, encPrivateKey } = JSON.parse(pendingKeysStr);
               
               const { error: patchError } = await supabase
@@ -133,7 +133,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
 
               if (!patchError) {
                 localStorage.removeItem(`pending_crypto_keys_${user.id}`);
-                setLogs((prev) => [...prev, createLog("[+] Successfully synced profile keys on first authentication session.")]);
+                setLogs((prev) => [...prev, createLog("[+] Encryption keys synced to your profile successfully.")]);
                 
                 // Fetch refreshed profile
                 const { data: refProfile } = await supabase
@@ -143,7 +143,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
                   .single();
                 setProfile(refProfile);
               } else {
-                setLogs((prev) => [...prev, createLog(`[-] Failed to sync keys: ${patchError.message}`)]);
+                setLogs((prev) => [...prev, createLog(`[-] Could not sync keys: ${patchError.message}`)]);
               }
             }
           }
@@ -233,7 +233,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
       });
 
     } catch (err: any) {
-      setLogs((prev) => [...prev, createLog(`[-] Metrics retrieval failed: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Could not load stats: ${err.message}`)]);
     } finally {
       setStatsLoading(false);
     }
@@ -242,12 +242,12 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
   // Cyberpunk starting logs console feed
   useEffect(() => {
     const startupLogs = [
-      "SYSTEM INITIATED — ZERO KNOWLEDGE CRYPTO ENGINE v2.0.0",
-      "[*] Fetching active edge location...",
-      "[*] Initializing local entropy source...",
-      "[*] Mounting Web Crypto AES-GCM engine...",
-      "[+] PBKDF2 (SHA-256) key derivation active. 100,000 iterations.",
-      "[*] Checking database connection link...",
+      "Welcome to Secure QR Messenger",
+      "[*] Connecting to server...",
+      "[*] Setting up encryption engine...",
+      "[*] Preparing secure messaging tools...",
+      "[+] Encryption ready (AES-256 with password protection).",
+      "[*] Checking database connection...",
     ];
 
     let logIndex = 0;
@@ -261,19 +261,19 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
           setDbStatus("offline");
           setLogs((prev) => [
             ...prev,
-            createLog(`[-] DATABASE LINK FAILED: ${dbError}`),
-            createLog("[!] Verify your Supabase credentials in .env.local"),
-            createLog("[!] Ensure the SQL schemas have been run in your Supabase DB.")
+            createLog(`[-] Database connection failed: ${dbError}`),
+            createLog("[!] Please check your server settings."),
+            createLog("[!] Make sure the database is properly set up.")
           ]);
         } else {
           setDbStatus("online");
           const profilesCount = initialTodos ? initialTodos.length : 0;
           setLogs((prev) => [
             ...prev,
-            createLog("[+] DATABASE ONLINE: Supabase endpoint responding at edge."),
-            createLog(`[+] Active Profiles found: ${profilesCount} items.`),
+            createLog("[+] Database connected successfully."),
+            createLog(`[+] Found ${profilesCount} registered users.`),
             ...(initialTodos ? initialTodos.map(t => createLog(`   - ${t.full_name || t.email || 'Anonymous'}`)) : []),
-            createLog("[!] SECURITY STATE: Secure. Ready for client operations.")
+            createLog("[!] Everything is secure. Ready to go.")
           ]);
         }
       }
@@ -283,7 +283,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
   }, [initialTodos, dbError]);
 
   const handleLogout = async () => {
-    setLogs((prev) => [...prev, createLog("[*] Destroying active session token...")]);
+    setLogs((prev) => [...prev, createLog("[*] Signing out...")]);
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
@@ -297,7 +297,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
       blockedScans: 0
     });
     setScanLogs([]);
-    setLogs((prev) => [...prev, createLog("[+] Session destroyed. Terminal locked.")]);
+    setLogs((prev) => [...prev, createLog("[+] Signed out successfully.")]);
   };
 
   // SVG Chart variables

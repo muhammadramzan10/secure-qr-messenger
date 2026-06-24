@@ -120,8 +120,8 @@ export default function FilesPage() {
 
   useEffect(() => {
     setLogs([
-      createLog("SYSTEM INITIATED — SYMMETRIC FILE PACKAGER v1.0.0"),
-      createLog("[*] Fetching active node authorization...")
+      createLog("Secure File Vault"),
+      createLog("[*] Checking your login status...")
     ]);
     checkUser();
   }, []);
@@ -131,13 +131,13 @@ export default function FilesPage() {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
       if (user) {
-        setLogs((prev) => [...prev, createLog(`[+] Node identity verified: ${user.email}`)]);
+        setLogs((prev) => [...prev, createLog(`[+] Logged in as: ${user.email}`)]);
         fetchFileList(user.id);
       } else {
-        setLogs((prev) => [...prev, createLog("[!] ALERT: Unauthenticated node connection. Access Forbidden.")]);
+        setLogs((prev) => [...prev, createLog("[!] Not logged in. Please sign in to manage files.")]);
       }
     } catch (err: any) {
-      setLogs((prev) => [...prev, createLog(`[-] Identity check error: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Login check error: ${err.message}`)]);
     } finally {
       setAuthLoading(false);
     }
@@ -155,7 +155,7 @@ export default function FilesPage() {
       if (error) throw error;
       setFiles(data || []);
     } catch (err: any) {
-      setLogs((prev) => [...prev, createLog(`[-] Failed to fetch files ledger: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Could not load files: ${err.message}`)]);
     } finally {
       setListLoading(false);
     }
@@ -170,7 +170,7 @@ export default function FilesPage() {
       } else {
         setUploadError(null);
         setSelectedFile(file);
-        setLogs((prev) => [...prev, createLog(`[*] Loaded local file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`)]);
+        setLogs((prev) => [...prev, createLog(`[*] File selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`)]);
       }
     }
   };
@@ -184,13 +184,13 @@ export default function FilesPage() {
     setUploadError(null);
     setLogs((prev) => [
       ...prev,
-      createLog("[*] Initiating file encryption pipeline..."),
-      createLog(`[*] Input size: ${selectedFile.size} bytes.`)
+      createLog("[*] Starting file encryption..."),
+      createLog(`[*] File size: ${selectedFile.size} bytes.`)
     ]);
 
     try {
       // 1. Read file to array buffer
-      setLogs((prev) => [...prev, createLog("[*] Reading binary payload into buffer memory...")]);
+      setLogs((prev) => [...prev, createLog("[*] Reading file contents...")]);
       const fileDataBuffer = await selectedFile.arrayBuffer();
 
       // 2. Generate random cryptographic materials
@@ -200,11 +200,11 @@ export default function FilesPage() {
       const mimetypeIvBytes = crypto.getRandomValues(new Uint8Array(12));
 
       // 3. Derive key using PBKDF2
-      setLogs((prev) => [...prev, createLog("[*] Deriving key from password (PBKDF2 SHA-256)...")]);
+      setLogs((prev) => [...prev, createLog("[*] Generating encryption key from your password...")]);
       const key = await deriveKeyFromPassword(passphrase, saltBytes);
 
       // 4. Encrypt file body (AES-GCM-256)
-      setLogs((prev) => [...prev, createLog("[*] Symmetrically encrypting file buffer (AES-GCM-256)...")]);
+      setLogs((prev) => [...prev, createLog("[*] Encrypting file...")]);
       const encryptedFileBuf = await crypto.subtle.encrypt(
         { name: "AES-GCM", iv: fileIvBytes as BufferSource },
         key,
@@ -215,7 +215,7 @@ export default function FilesPage() {
       const fileAuthTagBytes = encFileArr.slice(-16);
 
       // 5. Encrypt metadata (filename, mime type) under the same key
-      setLogs((prev) => [...prev, createLog("[*] Encrypting file name and mime type strings...")]);
+      setLogs((prev) => [...prev, createLog("[*] Encrypting file name and type...")]);
       const encoder = new TextEncoder();
       
       const encryptedFilenameBuf = await crypto.subtle.encrypt(
@@ -238,7 +238,7 @@ export default function FilesPage() {
 
       // 6. Upload encrypted file blob to Supabase Storage
       const storageFilename = `${crypto.randomUUID()}.bin`;
-      setLogs((prev) => [...prev, createLog(`[*] Transmitting encrypted blob to storage: ${storageFilename}...`)]);
+      setLogs((prev) => [...prev, createLog(`[*] Uploading encrypted file to cloud storage...`)]);
       
       const fileBlob = new Blob([encFileArr], { type: "application/octet-stream" });
       const { error: storageError } = await supabase.storage
@@ -251,7 +251,7 @@ export default function FilesPage() {
 
       // 7. Register metadata inside SQL database
       const fileToken = crypto.randomUUID();
-      setLogs((prev) => [...prev, createLog("[*] Saving secure metadata packet in files table...")]);
+      setLogs((prev) => [...prev, createLog("[*] Saving file details to database...")]);
       
       const { error: dbError } = await supabase
         .from("files")
@@ -279,8 +279,8 @@ export default function FilesPage() {
 
       setLogs((prev) => [
         ...prev,
-        createLog("[+] File fully packaged, encrypted, and saved on grid."),
-        createLog("[!] CRYPTOGRAPHIC LEDGER UPDATED NOMINAL.")
+        createLog("[+] File encrypted and uploaded successfully!"),
+        createLog("[!] Your file is now securely stored.")
       ]);
 
       // Construct decrypt URL & QR
@@ -306,7 +306,7 @@ export default function FilesPage() {
 
     } catch (err: any) {
       setUploadError("Something went wrong while encrypting or transferring your file. Please try again.");
-      setLogs((prev) => [...prev, createLog(`[-] FILE PROCESSING ABORTED: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Upload failed: ${err.message}`)]);
     } finally {
       setUploadLoading(false);
     }
@@ -317,7 +317,7 @@ export default function FilesPage() {
     e.preventDefault();
     if (!unlockPassphrase || files.length === 0) return;
 
-    setLogs((prev) => [...prev, createLog("[*] Handshaking and decrypting directories...")]);
+    setLogs((prev) => [...prev, createLog("[*] Unlocking file names...")]);
     const textDecoder = new TextDecoder();
     
     const decryptedList = await Promise.all(
@@ -376,14 +376,14 @@ export default function FilesPage() {
 
     setFiles(decryptedList);
     setIsUnlocked(true);
-    setLogs((prev) => [...prev, createLog("[+] Decryption pass complete. Directory names loaded.")]);
+    setLogs((prev) => [...prev, createLog("[+] File names unlocked successfully.")]);
   };
 
   // Delete file mapping and storage object
   const handleDeleteFile = async (fileRecord: FileRecord) => {
     if (!confirm("Are you sure you want to permanently shred this encrypted file record from the database and storage grids?")) return;
 
-    setLogs((prev) => [...prev, createLog(`[*] Deleting storage object: ${fileRecord.storage_path}...`)]);
+    setLogs((prev) => [...prev, createLog(`[*] Deleting file...`)]);
     try {
       // 1. Remove from Storage
       const { error: storageError } = await supabase.storage
@@ -404,12 +404,12 @@ export default function FilesPage() {
         throw new Error(`Database shredding failed: ${dbError.message}`);
       }
 
-      setLogs((prev) => [...prev, createLog("[+] File and database coordinates shredded successfully.")]);
+      setLogs((prev) => [...prev, createLog("[+] File deleted permanently.")]);
       if (user) {
         fetchFileList(user.id);
       }
     } catch (err: any) {
-      setLogs((prev) => [...prev, createLog(`[-] Shredding sequence aborted: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Could not delete file: ${err.message}`)]);
     }
   };
 
@@ -418,7 +418,7 @@ export default function FilesPage() {
       navigator.clipboard.writeText(shareFile.url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      setLogs((prev) => [...prev, createLog("[+] Decryption URL copied to clipboard.")]);
+      setLogs((prev) => [...prev, createLog("[+] Download link copied to clipboard.")]);
     }
   };
 

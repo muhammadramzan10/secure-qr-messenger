@@ -66,7 +66,7 @@ export default function EncryptPage() {
         setUser(user);
         
         if (user) {
-          setLogs((prev) => [...prev, createLog(`[+] Node identity authenticated: ${user.email}`)]);
+          setLogs((prev) => [...prev, createLog(`[+] Logged in as: ${user.email}`)]);
           
           // Fetch potential recipients
           const { data: profileList, error } = await supabase
@@ -76,21 +76,21 @@ export default function EncryptPage() {
             
           if (!error && profileList) {
             setProfiles(profileList);
-            setLogs((prev) => [...prev, createLog(`[+] Discovered ${profileList.length} secure chat nodes in system grid.`)]);
+            setLogs((prev) => [...prev, createLog(`[+] Found ${profileList.length} users available for chat.`)]);
           }
         } else {
-          setLogs((prev) => [...prev, createLog("[!] ALERT: Unauthenticated node connection. Encryption forbidden.")]);
+          setLogs((prev) => [...prev, createLog("[!] Not logged in. Please sign in to encrypt messages.")]);
         }
       } catch (err: any) {
-        setLogs((prev) => [...prev, createLog(`[-] Initialization error: ${err.message}`)]);
+        setLogs((prev) => [...prev, createLog(`[-] Setup error: ${err.message}`)]);
       } finally {
         setAuthLoading(false);
       }
     };
     
     setLogs([
-      createLog("SYSTEM INITIATED — SYMMETRIC QR PACKAGING TOOL"),
-      createLog("[*] Fetching node status...")
+      createLog("Secure QR Encryption Tool"),
+      createLog("[*] Getting things ready...")
     ]);
     initPage();
   }, []);
@@ -114,25 +114,25 @@ export default function EncryptPage() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev, 
-      createLog("[*] Initiating symmetric packaging pipeline..."),
-      createLog(`[*] Input length: ${messageText.length} characters.`)
+      createLog("[*] Starting encryption..."),
+      createLog(`[*] Message length: ${messageText.length} characters.`)
     ]);
 
     try {
       // 1. Client-Side Encryption
-      setLogs((prev) => [...prev, createLog("[*] Deriving cryptographic key from passphrase (PBKDF2 SHA-256)...")]);
+      setLogs((prev) => [...prev, createLog("[*] Generating encryption key from your password...")]);
       // Derive key and encrypt
       const encrypted = await encryptText(messageText, passphrase);
       
       setLogs((prev) => [
         ...prev,
-        createLog("[+] Key derived successfully. Iterations: 100,000."),
-        createLog("[*] Encrypting plaintext body with AES-GCM-256..."),
-        createLog(`[+] Symmetric encryption output generated:`),
+        createLog("[+] Encryption key created successfully."),
+        createLog("[*] Encrypting your message..."),
+        createLog(`[+] Message encrypted.`),
         createLog(`    - Salt: ${encrypted.salt.substring(0, 10)}...`),
         createLog(`    - IV: ${encrypted.iv.substring(0, 10)}...`),
-        createLog(`    - Ciphertext: ${encrypted.cipherText.substring(0, 12)}...`),
-        createLog(`    - Auth Tag: ${encrypted.authTag}`)
+        createLog(`    - Encrypted text: ${encrypted.cipherText.substring(0, 12)}...`),
+        createLog(`    - Verification tag: ${encrypted.authTag}`)
       ]);
 
       // 2. Compute expiration date
@@ -147,10 +147,10 @@ export default function EncryptPage() {
 
       // 3. Generate secure random QR token
       const qrToken = crypto.randomUUID();
-      setLogs((prev) => [...prev, createLog(`[*] Provisioning secure QR token: ${qrToken}`)]);
+      setLogs((prev) => [...prev, createLog(`[*] Creating secure QR code...`)]);
 
       // 4. Send encrypted message record to Supabase messages table
-      setLogs((prev) => [...prev, createLog("[*] Transmitting encrypted metadata packet to Supabase registry...")]);
+      setLogs((prev) => [...prev, createLog("[*] Saving encrypted message to database...")]);
       const { data: messageData, error: msgError } = await supabase
         .from("messages")
         .insert({
@@ -175,11 +175,11 @@ export default function EncryptPage() {
         throw new Error(`Supabase registration failed: ${msgError.message}`);
       }
 
-      setLogs((prev) => [...prev, createLog("[+] Packet successfully registered in messages table.")]);
+      setLogs((prev) => [...prev, createLog("[+] Encrypted message saved successfully.")]);
 
       // 5. Construct decryption URL and render QR Code
       const decryptUrl = `${window.location.origin}/decrypt?token=${qrToken}`;
-      setLogs((prev) => [...prev, createLog(`[*] Generating scannable local QR matrix for endpoint: ${decryptUrl}`)]);
+      setLogs((prev) => [...prev, createLog(`[*] Generating QR code image...`)]);
       
       const qrDataUrl = await QRCode.toDataURL(decryptUrl, {
         width: 300,
@@ -191,7 +191,7 @@ export default function EncryptPage() {
       });
 
       // 6. Register QR code representation in qr_codes table
-      setLogs((prev) => [...prev, createLog("[*] Saving active QR configuration link to qr_codes registry...")]);
+      setLogs((prev) => [...prev, createLog("[*] Registering QR code in the system...")]);
       const { error: qrError } = await supabase
         .from("qr_codes")
         .insert({
@@ -208,8 +208,8 @@ export default function EncryptPage() {
 
       setLogs((prev) => [
         ...prev, 
-        createLog("[+] QR code fully catalogued and active on system grid."),
-        createLog("[!] PACKAGING SECURE AND COMPLETE. SCANNER GRIDS INITIALIZED.")
+        createLog("[+] QR code created and ready to share!"),
+        createLog("[!] All done! Your encrypted message is ready.")
       ]);
 
       setSuccessPayload({
@@ -220,7 +220,7 @@ export default function EncryptPage() {
 
     } catch (err: any) {
       setErrorMsg("Something went wrong while encrypting or uploading your message. Please try again.");
-      setLogs((prev) => [...prev, createLog(`[-] SEQUENCE ABORTED: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Something went wrong: ${err.message}`)]);
     } finally {
       setLoading(false);
     }
@@ -231,7 +231,7 @@ export default function EncryptPage() {
       navigator.clipboard.writeText(successPayload.decryptUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      setLogs((prev) => [...prev, createLog("[+] Decryption URL copied to local system clipboard.")]);
+      setLogs((prev) => [...prev, createLog("[+] Decrypt link copied to clipboard.")]);
     }
   };
 
@@ -243,7 +243,7 @@ export default function EncryptPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setLogs((prev) => [...prev, createLog("[+] Downloaded QR matrix image artifact.")]);
+      setLogs((prev) => [...prev, createLog("[+] QR code image downloaded.")]);
     }
   };
 
@@ -258,7 +258,7 @@ export default function EncryptPage() {
     setSuccessPayload(null);
     setLogs((prev) => [
       ...prev,
-      createLog("[*] Form reset. Ready for next encryption sequence.")
+      createLog("[*] Form cleared. Ready to encrypt another message.")
     ]);
   };
 

@@ -103,8 +103,8 @@ function FileDecryptContent() {
 
   useEffect(() => {
     setLogs([
-      createLog("SYSTEM INITIATED — FILE DEPACKAGING DECK"),
-      createLog("[*] Standing by for secure file token submission...")
+      createLog("Secure File Download"),
+      createLog("[*] Paste your file link or token to get started...")
     ]);
   }, []);
 
@@ -112,7 +112,7 @@ function FileDecryptContent() {
     if (urlToken) {
       setActiveToken(urlToken);
       setTokenInput(urlToken);
-      setLogs((prev) => [...prev, createLog(`[*] Decryption token detected in URL: ${urlToken}`)]);
+      setLogs((prev) => [...prev, createLog(`[*] File token found in URL: ${urlToken}`)]);
     }
   }, [urlToken]);
 
@@ -135,7 +135,7 @@ function FileDecryptContent() {
     } catch (_) {}
 
     setActiveToken(extractedToken);
-    setLogs((prev) => [...prev, createLog(`[*] Manual token committed: ${extractedToken}`)]);
+    setLogs((prev) => [...prev, createLog(`[*] Token entered: ${extractedToken}`)]);
   };
 
   // Step 1: Handshake with Supabase to download SQL record
@@ -146,7 +146,7 @@ function FileDecryptContent() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev,
-      createLog(`[*] Handshaking with DB registry for token: ${activeToken}...`)
+      createLog(`[*] Looking up file for token: ${activeToken}...`)
     ]);
 
     try {
@@ -162,16 +162,16 @@ function FileDecryptContent() {
 
       setLogs((prev) => [
         ...prev,
-        createLog("[+] Handshake completed. SQL metadata block parsed."),
+        createLog("[+] File found! Details loaded."),
         createLog(`    - Size: ${(data.file_size / 1024).toFixed(1)} KB`),
-        createLog("[*] Ready to mount keypass for decryption...")
+        createLog("[*] Enter your password to download and decrypt...")
       ]);
 
       setFileRecord(data);
       setStep(2);
     } catch (err: any) {
       setErrorMsg("This file link is invalid, has expired, or has been deleted.");
-      setLogs((prev) => [...prev, createLog(`[-] HANDSHAKE FAILED: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Could not find file: ${err.message}`)]);
     } finally {
       setLoading(false);
     }
@@ -186,8 +186,8 @@ function FileDecryptContent() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev,
-      createLog("[*] Launching file download stream from cloud storage..."),
-      createLog(`[*] Storage Target: ${fileRecord.storage_path}`)
+      createLog("[*] Downloading encrypted file from cloud..."),
+      createLog(`[*] File location: ${fileRecord.storage_path}`)
     ]);
 
     try {
@@ -200,15 +200,15 @@ function FileDecryptContent() {
         throw new Error(`Failed to download storage artifact: ${storageError?.message}`);
       }
 
-      setLogs((prev) => [...prev, createLog("[+] Encrypted binary blob downloaded successfully.")]);
+      setLogs((prev) => [...prev, createLog("[+] Encrypted file downloaded.")]);
 
       // 2. Derive key from passcode using the stored salt
-      setLogs((prev) => [...prev, createLog("[*] Deriving cryptographic key from passphrase (PBKDF2 SHA-256)...")]);
+      setLogs((prev) => [...prev, createLog("[*] Generating decryption key from your password...")]);
       const saltBytes = base64ToBuf(fileRecord.salt);
       const key = await deriveKeyFromPassword(passphrase, saltBytes);
 
       // 3. Decrypt the filename and MIME type
-      setLogs((prev) => [...prev, createLog("[*] Decrypting file envelope metadata...")]);
+      setLogs((prev) => [...prev, createLog("[*] Decrypting file details...")]);
       const textDecoder = new TextDecoder();
 
       // Decrypt Filename
@@ -245,13 +245,13 @@ function FileDecryptContent() {
 
       setLogs((prev) => [
         ...prev,
-        createLog("[+] Envelope decrypted successfully:"),
-        createLog(`    - Filename: ${filename}`),
-        createLog(`    - MIME Type: ${mime}`)
+        createLog("[+] File details decrypted:"),
+        createLog(`    - Name: ${filename}`),
+        createLog(`    - Type: ${mime}`)
       ]);
 
       // 4. Decrypt raw file body
-      setLogs((prev) => [...prev, createLog("[*] Executing binary AES-GCM decryption matrix...")]);
+      setLogs((prev) => [...prev, createLog("[*] Decrypting file contents...")]);
       const fileArrayBuffer = await blobData.arrayBuffer();
       
       const decryptedFileBuffer = await crypto.subtle.decrypt(
@@ -260,7 +260,7 @@ function FileDecryptContent() {
         fileArrayBuffer as BufferSource
       );
 
-      setLogs((prev) => [...prev, createLog("[+] Binary payload decrypted successfully. Reconstituting File Blob...")]);
+      setLogs((prev) => [...prev, createLog("[+] File decrypted successfully! Preparing download...")]);
 
       // 5. Build Blob and trigger browser download save prompt
       const plainBlob = new Blob([decryptedFileBuffer], { type: mime });
@@ -277,15 +277,15 @@ function FileDecryptContent() {
       setDecryptedFilename(filename);
       setLogs((prev) => [
         ...prev,
-        createLog(`[+] File download triggered: ${filename}`),
-        createLog("[!] STORAGE TRANSACTIONS RESOLVED NOMINAL.")
+        createLog(`[+] Download started: ${filename}`),
+        createLog("[!] All done! Your file has been saved.")
       ]);
 
       setStep(3);
 
     } catch (err: any) {
       setErrorMsg("Incorrect password. The file could not be decrypted.");
-      setLogs((prev) => [...prev, createLog(`[-] DECRYPTION ERROR: ${err.message}`)]);
+      setLogs((prev) => [...prev, createLog(`[-] Decryption failed: Wrong password or corrupted file.`)]);
     } finally {
       setDecrypting(false);
     }
@@ -446,7 +446,7 @@ function FileDecryptContent() {
                       setStep(1);
                       setFileRecord(null);
                       setPassphrase("");
-                      setLogs((prev) => [...prev, createLog("[*] Aborted. local buffers cleared.")]);
+                      setLogs((prev) => [...prev, createLog("[*] Went back. Data cleared.")]);
                     }}
                     className="py-3 border border-green-950 hover:border-green-500 text-green-700 hover:text-green-400 font-bold text-xs uppercase tracking-widest transition-all duration-300 rounded flex items-center justify-center gap-2 cursor-pointer"
                   >
@@ -484,7 +484,7 @@ function FileDecryptContent() {
                       setFileRecord(null);
                       setPassphrase("");
                       setDecryptedFilename("");
-                      setLogs((prev) => [...prev, createLog("[*] Gateway reset. Waiting for next token.")]);
+                      setLogs((prev) => [...prev, createLog("[*] Ready to decrypt another file.")]);
                     }}
                     className="px-6 py-2.5 border border-green-500 hover:bg-green-500 hover:text-black font-bold text-xs uppercase tracking-wider transition-all duration-300 rounded cursor-pointer"
                   >
