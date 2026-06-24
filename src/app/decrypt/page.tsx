@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense, memo } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { decryptText } from "@/lib/crypto";
@@ -52,7 +52,12 @@ function DecryptContent() {
   // 2 = Enter Passphrase (Ciphertext is fetched)
   // 3 = Message Decrypted
   const [step, setStep] = useState(urlToken ? 1 : 1);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
+
+  const createLog = (text: string) => ({
+    time: new Date().toLocaleTimeString(),
+    text
+  });
   
   // Fetched data
   const [payload, setPayload] = useState<MessagePayload | null>(null);
@@ -78,8 +83,8 @@ function DecryptContent() {
     fetchIp();
 
     setLogs([
-      "SYSTEM INITIATED — QR DEPACKAGING GATEWAY",
-      "[*] Standing by for secure token submission..."
+      createLog("SYSTEM INITIATED — QR DEPACKAGING GATEWAY"),
+      createLog("[*] Standing by for secure token submission...")
     ]);
   }, []);
 
@@ -88,7 +93,7 @@ function DecryptContent() {
     if (urlToken) {
       setActiveToken(urlToken);
       setTokenInput(urlToken);
-      setLogs((prev) => [...prev, `[*] Decryption token detected in URL headers: ${urlToken}`]);
+      setLogs((prev) => [...prev, createLog(`[*] Decryption token detected in URL headers: ${urlToken}`)]);
     }
   }, [urlToken]);
 
@@ -112,7 +117,7 @@ function DecryptContent() {
     } catch (_) {}
 
     setActiveToken(extractedToken);
-    setLogs((prev) => [...prev, `[*] Manual token override committed: ${extractedToken}`]);
+    setLogs((prev) => [...prev, createLog(`[*] Manual token override committed: ${extractedToken}`)]);
   };
 
   // Step 1: Call RPC to retrieve message and trigger burn-on-read
@@ -123,11 +128,11 @@ function DecryptContent() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev,
-      `[*] Initiating database handshake for token: ${activeToken}`,
-      "[*] Gathering agent telemetry headers...",
-      `    - Node IP: ${clientIp}`,
-      `    - Platform: ${navigator.platform || "Unknown"}`,
-      `    - Browser Agent: ${navigator.userAgent.substring(0, 35)}...`
+      createLog(`[*] Initiating database handshake for token: ${activeToken}`),
+      createLog("[*] Gathering agent telemetry headers..."),
+      createLog(`    - Node IP: ${clientIp}`),
+      createLog(`    - Platform: ${navigator.platform || "Unknown"}`),
+      createLog(`    - Browser Agent: ${navigator.userAgent.substring(0, 35)}...`)
     ]);
 
     try {
@@ -152,10 +157,10 @@ function DecryptContent() {
 
       setLogs((prev) => [
         ...prev,
-        "[+] Handshake completed. Ciphertext envelope downloaded.",
-        `[!] SECURITY NOTE: Message is active-burn. Destruction status: ${record.is_one_time ? "DESTROYED ON DATABASE" : "RETAINED (PERSISTENT)"}`,
-        record.is_one_time ? "[!] WARNING: Server record has been shredded. Refreshing or closing this page will lose access forever." : "[*] Persistent QR record saved.",
-        "[*] Awaiting client keyphrase input..."
+        createLog("[+] Handshake completed. Ciphertext envelope downloaded."),
+        createLog(`[!] SECURITY NOTE: Message is active-burn. Destruction status: ${record.is_one_time ? "DESTROYED ON DATABASE" : "RETAINED (PERSISTENT)"}`),
+        createLog(record.is_one_time ? "[!] WARNING: Server record has been shredded. Refreshing or closing this page will lose access forever." : "[*] Persistent QR record saved."),
+        createLog("[*] Awaiting client keyphrase input...")
       ]);
 
       setPayload(record);
@@ -165,8 +170,8 @@ function DecryptContent() {
       setErrorMsg("This message link is invalid, has expired, or has already been opened and deleted.");
       setLogs((prev) => [
         ...prev,
-        `[-] HANDSHAKE TRANSACTION FAILED: ${err.message}`,
-        "[!] Security policy triggered: Access Blocked / Token Invalidated."
+        createLog(`[-] HANDSHAKE TRANSACTION FAILED: ${err.message}`),
+        createLog("[!] Security policy triggered: Access Blocked / Token Invalidated.")
       ]);
     } finally {
       setLoading(false);
@@ -182,8 +187,8 @@ function DecryptContent() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev,
-      "[*] Initiating client-side decryption engine...",
-      "[*] Deriving key from password (PBKDF2, Iterations: 100,000)..."
+      createLog("[*] Initiating client-side decryption engine..."),
+      createLog("[*] Deriving key from password (PBKDF2, Iterations: 100,000)...")
     ]);
 
     try {
@@ -197,9 +202,9 @@ function DecryptContent() {
 
       setLogs((prev) => [
         ...prev,
-        "[+] Key derived successfully. PBKDF2 integrity match verified.",
-        "[*] Executing AES-GCM-256 decryption matrices...",
-        "[+] DECRYPTION SUCCESSFUL. PLAINTEXT CONSOLE STREAMING ACTIVE."
+        createLog("[+] Key derived successfully. PBKDF2 integrity match verified."),
+        createLog("[*] Executing AES-GCM-256 decryption matrices..."),
+        createLog("[+] DECRYPTION SUCCESSFUL. PLAINTEXT CONSOLE STREAMING ACTIVE.")
       ]);
 
       setDecryptedMessage(decrypted);
@@ -209,11 +214,11 @@ function DecryptContent() {
       setErrorMsg("Incorrect password. Please verify the passcode and try again.");
       setLogs((prev) => [
         ...prev,
-        `[-] Decryption failed: ${err.message}`,
-        "[-] Cryptographic signature invalid. Passphrase rejected.",
-        payload.is_one_time 
+        createLog(`[-] Decryption failed: ${err.message}`),
+        createLog("[-] Cryptographic signature invalid. Passphrase rejected."),
+        createLog(payload.is_one_time 
           ? "[!] NOTE: Since this was a Burn-on-Read message, it has been shredded on Supabase. You cannot retrieve it again." 
-          : "[!] Note: You can retry with a different password."
+          : "[!] Note: You can retry with a different password.")
       ]);
     } finally {
       setDecrypting(false);
@@ -225,7 +230,7 @@ function DecryptContent() {
       navigator.clipboard.writeText(decryptedMessage);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      setLogs((prev) => [...prev, "[+] Decrypted plaintext copied to clipboard."]);
+      setLogs((prev) => [...prev, createLog("[+] Decrypted plaintext copied to clipboard.")]);
     }
   };
 
@@ -235,7 +240,7 @@ function DecryptContent() {
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(18,16,16,0)+50%,rgba(0,0,0,0.25)+50%),linear-gradient(to_right,rgba(255,0,0,0.06)+33%,rgba(0,255,0,0.02)+33%,rgba(0,0,255,0.06)+66%)] bg-[length:100%_4px,3px_100%] pointer-events-none z-10" />
 
       {/* Header */}
-      <header className="border-b border-green-950 bg-black/80 backdrop-blur-md sticky top-0 z-20 py-4 px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
+      <header className="border-b border-green-950 bg-black/80 backdrop-blur-md sticky top-0 z-20 py-3 px-4 md:py-4 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 text-xs text-green-700 hover:text-green-400 transition-all duration-300">
           <ArrowLeft className="w-4 h-4" /> [ BACK TO COMMAND GRID ]
         </Link>
@@ -246,7 +251,7 @@ function DecryptContent() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 z-20">
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 z-20">
         
         {/* Left Column: Decrypt controls */}
         <div className="lg:col-span-7 flex flex-col gap-6">
@@ -258,8 +263,8 @@ function DecryptContent() {
                 <div className="absolute -inset-1 bg-green-500/20 rounded-full blur animate-ping" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white tracking-wider">DECRYPT SCAN PAYLOAD</h2>
-                <p className="text-xs text-green-700">AES-GCM-256 ZERO KNOWLEDGE ENDPOINT DECODER</p>
+                <h2 className="text-base md:text-lg font-bold text-white tracking-wider">DECRYPT SCAN PAYLOAD</h2>
+                <p className="text-[10px] md:text-xs text-green-700">AES-GCM-256 ZERO KNOWLEDGE ENDPOINT DECODER</p>
               </div>
             </div>
 
@@ -389,7 +394,7 @@ function DecryptContent() {
                       setStep(1);
                       setPayload(null);
                       setPassphrase("");
-                      setLogs((prev) => [...prev, "[*] Returned to Step 1. Discarded local cipher memory."]);
+                      setLogs((prev) => [...prev, createLog("[*] Returned to Step 1. Discarded local cipher memory.")]);
                     }}
                     className="py-3 border border-green-950 hover:border-green-500 text-green-700 hover:text-green-400 font-bold text-xs uppercase tracking-widest transition-all duration-300 rounded flex items-center justify-center gap-2 cursor-pointer"
                   >
@@ -418,7 +423,7 @@ function DecryptContent() {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={handleCopyMessage}
                     className="flex-1 py-3.5 border border-green-500 hover:bg-green-500 hover:text-black font-bold text-xs uppercase tracking-wider transition-all duration-300 rounded flex items-center justify-center gap-2 cursor-pointer"
@@ -434,9 +439,9 @@ function DecryptContent() {
                       setPayload(null);
                       setPassphrase("");
                       setDecryptedMessage(null);
-                      setLogs((prev) => [...prev, "[*] System reset. Clearing decryption cache."]);
+                      setLogs((prev) => [...prev, createLog("[*] System reset. Clearing decryption cache.")]);
                     }}
-                    className="py-3.5 px-6 border border-green-950 hover:border-green-500 text-green-700 hover:text-green-400 font-bold text-xs uppercase tracking-wider transition-all duration-300 rounded cursor-pointer"
+                    className="py-3.5 px-6 border border-green-950 hover:border-green-500 text-green-700 hover:text-green-400 font-bold text-xs uppercase tracking-wider transition-all duration-300 rounded cursor-pointer text-center"
                   >
                     RESET GATEWAY
                   </button>
@@ -448,37 +453,7 @@ function DecryptContent() {
         </div>
 
         {/* Right Column: Console Log */}
-        <div className="lg:col-span-5 flex flex-col min-h-[300px] lg:h-auto gap-6">
-          <div className="border border-green-900 rounded bg-black/90 p-6 flex-1 flex flex-col shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]">
-            
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-xs">
-              <span className="flex items-center gap-2 text-white">
-                <Terminal className="w-4 h-4 text-green-400" /> TRANSACTION HANDSHAKE LOGGER
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2 text-[11px] leading-relaxed max-h-[400px] lg:max-h-none font-mono">
-              {logs.map((log, index) => (
-                <div key={index} className="flex gap-2">
-                  <span className="text-green-700">[{new Date().toLocaleTimeString()}]</span>
-                  <span className={`${
-                    (log || "").startsWith("[+") ? "text-emerald-400" : 
-                    (log || "").startsWith("[!") ? "text-yellow-400" : 
-                    (log || "").startsWith("[-") ? "text-red-400" : 
-                    "text-green-500"
-                  }`}>
-                    {log || ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t border-green-950 mt-4 pt-4 text-[10px] text-green-800 text-center">
-              SECURE DECRYPT PLATFORM GRID NODE
-            </div>
-          </div>
-        </div>
+        <DecryptionConsole logs={logs} />
 
       </main>
 
@@ -496,6 +471,45 @@ function DecryptContent() {
     </div>
   );
 }
+
+interface DecryptionConsoleProps {
+  logs: { time: string; text: string }[];
+}
+
+const DecryptionConsole = memo(function DecryptionConsole({ logs }: DecryptionConsoleProps) {
+  return (
+    <div className="lg:col-span-5 flex flex-col min-h-[300px] lg:h-auto gap-6">
+      <div className="border border-green-900 rounded bg-black/90 p-6 flex-1 flex flex-col shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]">
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-xs">
+          <span className="flex items-center gap-2 text-white">
+            <Terminal className="w-4 h-4 text-green-400" /> TRANSACTION HANDSHAKE LOGGER
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-2 text-[11px] leading-relaxed max-h-[400px] lg:max-h-none font-mono">
+          {logs.map((log, index) => (
+            <div key={index} className="flex gap-2">
+              <span className="text-green-700">[{log.time}]</span>
+              <span className={`${
+                log.text.startsWith("[+") ? "text-emerald-400" : 
+                log.text.startsWith("[!") ? "text-yellow-400" : 
+                log.text.startsWith("[-") ? "text-red-400" : 
+                "text-green-500"
+              }`}>
+                {log.text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-green-950 mt-4 pt-4 text-[10px] text-green-800 text-center">
+          SECURE DECRYPT PLATFORM GRID NODE
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export default function DecryptPage() {
   return (

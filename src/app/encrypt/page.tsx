@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { encryptText } from "@/lib/crypto";
 import QRCode from "qrcode";
@@ -44,7 +44,7 @@ export default function EncryptPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   
   // UI states
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successPayload, setSuccessPayload] = useState<{
     qrToken: string;
@@ -52,6 +52,11 @@ export default function EncryptPage() {
     qrDataUrl: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const createLog = (text: string) => ({
+    time: new Date().toLocaleTimeString(),
+    text
+  });
 
   // Authenticate user and fetch other profiles
   useEffect(() => {
@@ -61,7 +66,7 @@ export default function EncryptPage() {
         setUser(user);
         
         if (user) {
-          setLogs((prev) => [...prev, `[+] Node identity authenticated: ${user.email}`]);
+          setLogs((prev) => [...prev, createLog(`[+] Node identity authenticated: ${user.email}`)]);
           
           // Fetch potential recipients
           const { data: profileList, error } = await supabase
@@ -71,21 +76,21 @@ export default function EncryptPage() {
             
           if (!error && profileList) {
             setProfiles(profileList);
-            setLogs((prev) => [...prev, `[+] Discovered ${profileList.length} secure chat nodes in system grid.`]);
+            setLogs((prev) => [...prev, createLog(`[+] Discovered ${profileList.length} secure chat nodes in system grid.`)]);
           }
         } else {
-          setLogs((prev) => [...prev, "[!] ALERT: Unauthenticated node connection. Encryption forbidden."]);
+          setLogs((prev) => [...prev, createLog("[!] ALERT: Unauthenticated node connection. Encryption forbidden.")]);
         }
       } catch (err: any) {
-        setLogs((prev) => [...prev, `[-] Initialization error: ${err.message}`]);
+        setLogs((prev) => [...prev, createLog(`[-] Initialization error: ${err.message}`)]);
       } finally {
         setAuthLoading(false);
       }
     };
     
     setLogs([
-      "SYSTEM INITIATED — SYMMETRIC QR PACKAGING TOOL",
-      "[*] Fetching node status..."
+      createLog("SYSTEM INITIATED — SYMMETRIC QR PACKAGING TOOL"),
+      createLog("[*] Fetching node status...")
     ]);
     initPage();
   }, []);
@@ -109,25 +114,25 @@ export default function EncryptPage() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev, 
-      "[*] Initiating symmetric packaging pipeline...",
-      `[*] Input length: ${messageText.length} characters.`
+      createLog("[*] Initiating symmetric packaging pipeline..."),
+      createLog(`[*] Input length: ${messageText.length} characters.`)
     ]);
 
     try {
       // 1. Client-Side Encryption
-      setLogs((prev) => [...prev, "[*] Deriving cryptographic key from passphrase (PBKDF2 SHA-256)..."]);
+      setLogs((prev) => [...prev, createLog("[*] Deriving cryptographic key from passphrase (PBKDF2 SHA-256)...")]);
       // Derive key and encrypt
       const encrypted = await encryptText(messageText, passphrase);
       
       setLogs((prev) => [
         ...prev,
-        "[+] Key derived successfully. Iterations: 100,000.",
-        "[*] Encrypting plaintext body with AES-GCM-256...",
-        `[+] Symmetric encryption output generated:`,
-        `    - Salt: ${encrypted.salt.substring(0, 10)}...`,
-        `    - IV: ${encrypted.iv.substring(0, 10)}...`,
-        `    - Ciphertext: ${encrypted.cipherText.substring(0, 12)}...`,
-        `    - Auth Tag: ${encrypted.authTag}`
+        createLog("[+] Key derived successfully. Iterations: 100,000."),
+        createLog("[*] Encrypting plaintext body with AES-GCM-256..."),
+        createLog(`[+] Symmetric encryption output generated:`),
+        createLog(`    - Salt: ${encrypted.salt.substring(0, 10)}...`),
+        createLog(`    - IV: ${encrypted.iv.substring(0, 10)}...`),
+        createLog(`    - Ciphertext: ${encrypted.cipherText.substring(0, 12)}...`),
+        createLog(`    - Auth Tag: ${encrypted.authTag}`)
       ]);
 
       // 2. Compute expiration date
@@ -142,10 +147,10 @@ export default function EncryptPage() {
 
       // 3. Generate secure random QR token
       const qrToken = crypto.randomUUID();
-      setLogs((prev) => [...prev, `[*] Provisioning secure QR token: ${qrToken}`]);
+      setLogs((prev) => [...prev, createLog(`[*] Provisioning secure QR token: ${qrToken}`)]);
 
       // 4. Send encrypted message record to Supabase messages table
-      setLogs((prev) => [...prev, "[*] Transmitting encrypted metadata packet to Supabase registry..."]);
+      setLogs((prev) => [...prev, createLog("[*] Transmitting encrypted metadata packet to Supabase registry...")]);
       const { data: messageData, error: msgError } = await supabase
         .from("messages")
         .insert({
@@ -170,11 +175,11 @@ export default function EncryptPage() {
         throw new Error(`Supabase registration failed: ${msgError.message}`);
       }
 
-      setLogs((prev) => [...prev, "[+] Packet successfully registered in messages table."]);
+      setLogs((prev) => [...prev, createLog("[+] Packet successfully registered in messages table.")]);
 
       // 5. Construct decryption URL and render QR Code
       const decryptUrl = `${window.location.origin}/decrypt?token=${qrToken}`;
-      setLogs((prev) => [...prev, `[*] Generating scannable local QR matrix for endpoint: ${decryptUrl}`]);
+      setLogs((prev) => [...prev, createLog(`[*] Generating scannable local QR matrix for endpoint: ${decryptUrl}`)]);
       
       const qrDataUrl = await QRCode.toDataURL(decryptUrl, {
         width: 300,
@@ -186,7 +191,7 @@ export default function EncryptPage() {
       });
 
       // 6. Register QR code representation in qr_codes table
-      setLogs((prev) => [...prev, "[*] Saving active QR configuration link to qr_codes registry..."]);
+      setLogs((prev) => [...prev, createLog("[*] Saving active QR configuration link to qr_codes registry...")]);
       const { error: qrError } = await supabase
         .from("qr_codes")
         .insert({
@@ -203,8 +208,8 @@ export default function EncryptPage() {
 
       setLogs((prev) => [
         ...prev, 
-        "[+] QR code fully catalogued and active on system grid.",
-        "[!] PACKAGING SECURE AND COMPLETE. SCANNER GRIDS INITIALIZED."
+        createLog("[+] QR code fully catalogued and active on system grid."),
+        createLog("[!] PACKAGING SECURE AND COMPLETE. SCANNER GRIDS INITIALIZED.")
       ]);
 
       setSuccessPayload({
@@ -215,7 +220,7 @@ export default function EncryptPage() {
 
     } catch (err: any) {
       setErrorMsg("Something went wrong while encrypting or uploading your message. Please try again.");
-      setLogs((prev) => [...prev, `[-] SEQUENCE ABORTED: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] SEQUENCE ABORTED: ${err.message}`)]);
     } finally {
       setLoading(false);
     }
@@ -226,7 +231,7 @@ export default function EncryptPage() {
       navigator.clipboard.writeText(successPayload.decryptUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      setLogs((prev) => [...prev, "[+] Decryption URL copied to local system clipboard."]);
+      setLogs((prev) => [...prev, createLog("[+] Decryption URL copied to local system clipboard.")]);
     }
   };
 
@@ -238,7 +243,7 @@ export default function EncryptPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setLogs((prev) => [...prev, "[+] Downloaded QR matrix image artifact."]);
+      setLogs((prev) => [...prev, createLog("[+] Downloaded QR matrix image artifact.")]);
     }
   };
 
@@ -253,7 +258,7 @@ export default function EncryptPage() {
     setSuccessPayload(null);
     setLogs((prev) => [
       ...prev,
-      "[*] Form reset. Ready for next encryption sequence."
+      createLog("[*] Form reset. Ready for next encryption sequence.")
     ]);
   };
 
@@ -263,7 +268,7 @@ export default function EncryptPage() {
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(18,16,16,0)+50%,rgba(0,0,0,0.25)+50%),linear-gradient(to_right,rgba(255,0,0,0.06)+33%,rgba(0,255,0,0.02)+33%,rgba(0,0,255,0.06)+66%)] bg-[length:100%_4px,3px_100%] pointer-events-none z-10" />
 
       {/* Header */}
-      <header className="border-b border-green-950 bg-black/80 backdrop-blur-md sticky top-0 z-20 py-4 px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
+      <header className="border-b border-green-950 bg-black/80 backdrop-blur-md sticky top-0 z-20 py-3 px-4 md:py-4 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 text-xs text-green-700 hover:text-green-400 transition-all duration-300">
           <ArrowLeft className="w-4 h-4" /> [ BACK TO COMMAND GRID ]
         </Link>
@@ -274,7 +279,7 @@ export default function EncryptPage() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 z-20">
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 z-20">
         
         {/* Left Column: Form / Result Panel */}
         <div className="lg:col-span-7 flex flex-col gap-6">
@@ -286,8 +291,8 @@ export default function EncryptPage() {
                 <div className="absolute -inset-1 bg-green-500/20 rounded-full blur animate-ping" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white tracking-wider">PACK MESSAGES INTO QR CODES</h2>
-                <p className="text-xs text-green-700">AES-GCM-256 CLIENT-SIDE PARALLAX ENCRYPTION</p>
+                <h2 className="text-base md:text-lg font-bold text-white tracking-wider">PACK MESSAGES INTO QR CODES</h2>
+                <p className="text-[10px] md:text-xs text-green-700">AES-GCM-256 CLIENT-SIDE PARALLAX ENCRYPTION</p>
               </div>
             </div>
 
@@ -530,36 +535,7 @@ export default function EncryptPage() {
         </div>
 
         {/* Right Column: Interactive Console Feed */}
-        <div className="lg:col-span-5 flex flex-col min-h-[300px] lg:h-auto gap-6">
-          <div className="border border-green-900 rounded bg-black/90 p-6 flex-1 flex flex-col shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]">
-            
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-xs">
-              <span className="flex items-center gap-2 text-white">
-                <Terminal className="w-4 h-4 text-green-400" /> CRYPTOGRAPHIC PIPELINE TELEMETRY
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-2 text-[11px] leading-relaxed max-h-[400px] lg:max-h-none font-mono">
-              {logs.map((log, index) => (
-                <div key={index} className="flex gap-2">
-                  <span className="text-green-700">[{new Date().toLocaleTimeString()}]</span>
-                  <span className={`${
-                    (log || "").startsWith("[+") ? "text-emerald-400" : 
-                    (log || "").startsWith("[!") ? "text-yellow-400" : 
-                    (log || "").startsWith("[-") ? "text-red-400" : 
-                    "text-green-500"
-                  }`}>
-                    {log || ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t border-green-950 mt-4 pt-4 text-[10px] text-green-800 text-center">
-              ENTROPY SOURCE: WINDOW.CRYPTO.GETRANDOMVALUES
-            </div>
-          </div>
-        </div>
+        <TelemetryConsole logs={logs} />
 
       </main>
 
@@ -577,3 +553,41 @@ export default function EncryptPage() {
     </div>
   );
 }
+
+interface TelemetryConsoleProps {
+  logs: { time: string; text: string }[];
+}
+
+const TelemetryConsole = memo(function TelemetryConsole({ logs }: TelemetryConsoleProps) {
+  return (
+    <div className="lg:col-span-5 flex flex-col min-h-[300px] lg:h-auto gap-6">
+      <div className="border border-green-900 rounded bg-black/90 p-6 flex-1 flex flex-col shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]">
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-xs">
+          <span className="flex items-center gap-2 text-white">
+            <Terminal className="w-4 h-4 text-green-400" /> CRYPTOGRAPHIC PIPELINE TELEMETRY
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-2 text-[11px] leading-relaxed max-h-[400px] lg:max-h-none font-mono">
+          {logs.map((log, index) => (
+            <div key={index} className="flex gap-2">
+              <span className="text-green-700">[{log.time}]</span>
+              <span className={`${
+                log.text.startsWith("[+") ? "text-emerald-400" : 
+                log.text.startsWith("[!") ? "text-yellow-400" : 
+                log.text.startsWith("[-") ? "text-red-400" : 
+                "text-green-500"
+              }`}>
+                {log.text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-green-950 mt-4 pt-4 text-[10px] text-green-800 text-center">
+          ENTROPY SOURCE: WINDOW.CRYPTO.GETRANDOMVALUES
+        </div>
+      </div>
+    </div>
+  );
+});

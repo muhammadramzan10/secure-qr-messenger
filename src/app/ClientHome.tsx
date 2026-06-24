@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { 
   ShieldAlert, 
@@ -56,8 +56,13 @@ interface ScanLog {
 
 export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
   const supabase = createClient();
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
   const [dbStatus, setDbStatus] = useState<"connecting" | "offline" | "online">("connecting");
+
+  const createLog = (text: string) => ({
+    time: new Date().toLocaleTimeString(),
+    text
+  });
   
   // Auth & Profile states
   const [user, setUser] = useState<any | null>(null);
@@ -112,7 +117,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
             // Check for pending keys generated during a signup that required email confirmation
             const pendingKeysStr = localStorage.getItem(`pending_crypto_keys_${user.id}`);
             if (pendingKeysStr) {
-              setLogs((prev) => [...prev, "[*] Found pending local keypair. Injecting to profile table..."]);
+              setLogs((prev) => [...prev, createLog("[*] Found pending local keypair. Injecting to profile table...")]);
               const { pubKeyString, encPrivateKey } = JSON.parse(pendingKeysStr);
               
               const { error: patchError } = await supabase
@@ -128,7 +133,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
 
               if (!patchError) {
                 localStorage.removeItem(`pending_crypto_keys_${user.id}`);
-                setLogs((prev) => [...prev, "[+] Successfully synced profile keys on first authentication session."]);
+                setLogs((prev) => [...prev, createLog("[+] Successfully synced profile keys on first authentication session.")]);
                 
                 // Fetch refreshed profile
                 const { data: refProfile } = await supabase
@@ -138,7 +143,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
                   .single();
                 setProfile(refProfile);
               } else {
-                setLogs((prev) => [...prev, `[-] Failed to sync keys: ${patchError.message}`]);
+                setLogs((prev) => [...prev, createLog(`[-] Failed to sync keys: ${patchError.message}`)]);
               }
             }
           }
@@ -228,7 +233,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
       });
 
     } catch (err: any) {
-      setLogs((prev) => [...prev, `[-] Metrics retrieval failed: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Metrics retrieval failed: ${err.message}`)]);
     } finally {
       setStatsLoading(false);
     }
@@ -248,7 +253,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
     let logIndex = 0;
     const interval = setInterval(() => {
       if (logIndex < startupLogs.length) {
-        setLogs((prev) => [...prev, startupLogs[logIndex]]);
+        setLogs((prev) => [...prev, createLog(startupLogs[logIndex])]);
         logIndex++;
       } else {
         clearInterval(interval);
@@ -256,19 +261,19 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
           setDbStatus("offline");
           setLogs((prev) => [
             ...prev,
-            `[-] DATABASE LINK FAILED: ${dbError}`,
-            "[!] Verify your Supabase credentials in .env.local",
-            "[!] Ensure the SQL schemas have been run in your Supabase DB."
+            createLog(`[-] DATABASE LINK FAILED: ${dbError}`),
+            createLog("[!] Verify your Supabase credentials in .env.local"),
+            createLog("[!] Ensure the SQL schemas have been run in your Supabase DB.")
           ]);
         } else {
           setDbStatus("online");
           const profilesCount = initialTodos ? initialTodos.length : 0;
           setLogs((prev) => [
             ...prev,
-            "[+] DATABASE ONLINE: Supabase endpoint responding at edge.",
-            `[+] Active Profiles found: ${profilesCount} items.`,
-            ...(initialTodos ? initialTodos.map(t => `   - ${t.full_name || t.email || 'Anonymous'}`) : []),
-            "[!] SECURITY STATE: Secure. Ready for client operations."
+            createLog("[+] DATABASE ONLINE: Supabase endpoint responding at edge."),
+            createLog(`[+] Active Profiles found: ${profilesCount} items.`),
+            ...(initialTodos ? initialTodos.map(t => createLog(`   - ${t.full_name || t.email || 'Anonymous'}`)) : []),
+            createLog("[!] SECURITY STATE: Secure. Ready for client operations.")
           ]);
         }
       }
@@ -278,7 +283,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
   }, [initialTodos, dbError]);
 
   const handleLogout = async () => {
-    setLogs((prev) => [...prev, "[*] Destroying active session token..."]);
+    setLogs((prev) => [...prev, createLog("[*] Destroying active session token...")]);
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
@@ -292,7 +297,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
       blockedScans: 0
     });
     setScanLogs([]);
-    setLogs((prev) => [...prev, "[+] Session destroyed. Terminal locked."]);
+    setLogs((prev) => [...prev, createLog("[+] Session destroyed. Terminal locked.")]);
   };
 
   // SVG Chart variables
@@ -307,17 +312,17 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(18,16,16,0)+50%,rgba(0,0,0,0.25)+50%),linear-gradient(to_right,rgba(255,0,0,0.06)+33%,rgba(0,255,0,0.02)+33%,rgba(0,0,255,0.06)+66%)] bg-[length:100%_4px,3px_100%] pointer-events-none z-10" />
 
       {/* Futuristic Header */}
-      <header className="border-b border-green-950 bg-black/80 backdrop-blur-md sticky top-0 z-20 py-4 px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
+      <header className="border-b border-green-950 bg-black/80 backdrop-blur-md sticky top-0 z-20 py-3 px-4 md:py-4 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="relative">
             <ShieldAlert className="w-8 h-8 text-green-400 animate-pulse" />
             <div className="absolute -inset-1 bg-green-500/20 rounded-full blur animate-ping" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-widest text-green-400">
+            <h1 className="text-lg md:text-xl font-bold tracking-widest text-green-400">
               SECURE <span className="text-white">QR</span> MESSENGER
             </h1>
-            <p className="text-xs text-green-700 tracking-wider">
+            <p className="text-[10px] md:text-xs text-green-700 tracking-wider">
               CLIENT-SIDE END-TO-END CRYPTO ENGINE
             </p>
           </div>
@@ -356,10 +361,10 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
           {/* Welcome Info Box (7 columns) */}
           <div className="lg:col-span-7 border border-green-900 rounded p-6 bg-gradient-to-br from-zinc-950/90 to-black flex flex-col justify-between shadow-[0_0_15px_rgba(0,255,0,0.01)]">
             <div>
-              <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+              <h2 className="text-base md:text-lg font-bold text-white mb-3 flex items-center gap-2">
                 <Activity className="w-5 h-5 text-green-400 animate-pulse" /> SECURITY OPERATIONS CENTER
               </h2>
-              <p className="text-xs text-green-700 leading-relaxed">
+              <p className="text-[11px] md:text-xs text-green-700 leading-relaxed">
                 Welcome to the zero-knowledge operations grid. Encrypt sensitive payloads and files symmetrically into expiring or self-shredding QR packages. Alternatively, open direct end-to-end asymmetric message tunnels protected by browser cryptography keys. Decrypt credentials securely on any edge device without saving key secrets in cloud storage.
               </p>
             </div>
@@ -376,7 +381,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
 
           {/* Stats Metrics Deck (5 columns) */}
           <div className="lg:col-span-5 border border-green-900 rounded p-6 bg-zinc-950/90 flex flex-col justify-between">
-            <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-1.5 uppercase">
+            <h3 className="text-[11px] md:text-xs font-bold text-white mb-4 flex items-center gap-1.5 uppercase">
               <Terminal className="w-4 h-4 text-green-400 animate-pulse" /> NODE STATS TELEMETRY
             </h3>
             
@@ -423,10 +428,10 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
               <QrCode className="w-8 h-8 text-green-500 group-hover:text-green-400 transition-colors" />
               <span className="text-xs border border-green-900 px-2 py-0.5 rounded text-green-700">01</span>
             </div>
-            <h3 className="text-white font-bold mb-2 group-hover:text-green-400 transition-colors text-sm">
+            <h3 className="text-white font-bold mb-2 group-hover:text-green-400 transition-colors text-xs md:text-sm">
               Encrypt & Generate QR
             </h3>
-            <p className="text-[11px] text-green-700 leading-relaxed">
+            <p className="text-[10px] md:text-[11px] text-green-700 leading-relaxed">
               Pack text into client-side symmetrically encrypted QR codes with customizable expiry timers and burn-on-read options.
             </p>
           </Link>
@@ -440,10 +445,10 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
               <Unlock className="w-8 h-8 text-green-500 group-hover:text-green-400 transition-colors" />
               <span className="text-xs border border-green-900 px-2 py-0.5 rounded text-green-700">02</span>
             </div>
-            <h3 className="text-white font-bold mb-2 group-hover:text-green-400 transition-colors text-sm">
+            <h3 className="text-white font-bold mb-2 group-hover:text-green-400 transition-colors text-xs md:text-sm">
               Decrypt scan / Token
             </h3>
-            <p className="text-[11px] text-green-700 leading-relaxed">
+            <p className="text-[10px] md:text-[11px] text-green-700 leading-relaxed">
               Unlock encrypted text payloads by pasting dynamic lookup token links or scanning scannable QR coordinate sheets.
             </p>
           </Link>
@@ -457,10 +462,10 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
               <MessageSquare className="w-8 h-8 text-green-500 group-hover:text-green-400 transition-colors" />
               <span className="text-xs border border-green-900 px-2 py-0.5 rounded text-green-700">03</span>
             </div>
-            <h3 className="text-white font-bold mb-2 group-hover:text-green-400 transition-colors text-sm">
+            <h3 className="text-white font-bold mb-2 group-hover:text-green-400 transition-colors text-xs md:text-sm">
               Direct E2E Chat
             </h3>
-            <p className="text-[11px] text-green-700 leading-relaxed">
+            <p className="text-[10px] md:text-[11px] text-green-700 leading-relaxed">
               Establish secure asymmetric direct message chats. Payload contents are encrypted using recipient public keys.
             </p>
           </Link>
@@ -474,10 +479,10 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
               <FileLock2 className="w-8 h-8 text-green-500 group-hover:text-green-400 transition-colors" />
               <span className="text-xs border border-green-900 px-2 py-0.5 rounded text-green-700">04</span>
             </div>
-            <h3 className="text-white font-bold mb-2 group-hover:text-green-400 transition-colors text-sm">
+            <h3 className="text-white font-bold mb-2 group-hover:text-green-400 transition-colors text-xs md:text-sm">
               Encrypted File Box
             </h3>
-            <p className="text-[11px] text-green-700 leading-relaxed">
+            <p className="text-[10px] md:text-[11px] text-green-700 leading-relaxed">
               Upload images, PDFs, or keys symmetrically encrypted client-side. Secured in buckets with absolute metadata obfuscation.
             </p>
           </Link>
@@ -755,25 +760,7 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
         </div>
 
         {/* Interactive Live Log Terminal Feed */}
-        <div className="border border-green-900 rounded bg-black/90 p-5 flex flex-col min-h-[150px] shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] font-mono">
-          <div className="flex items-center justify-between mb-3 pb-2 border-b border-green-950/80 text-[10px] flex-shrink-0">
-            <span className="flex items-center gap-1.5 text-white">
-              <Terminal className="w-4 h-4 text-green-400" /> SYSTEM DIAGNOSTIC TELEMETRY LOGS
-            </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
-          </div>
-          
-          <div className="flex-1 overflow-y-auto space-y-1.5 text-[10px] leading-relaxed max-h-[150px] pr-2">
-            {logs.map((log, index) => (
-              <div key={index} className="flex gap-2">
-                <span className="text-green-700">[{new Date().toLocaleTimeString()}]</span>
-                <span className={`${(log || "").startsWith("[+") ? "text-emerald-400" : (log || "").startsWith("[!") ? "text-yellow-400" : (log || "").startsWith("[-") ? "text-red-400" : "text-green-500"}`}>
-                  {log || ""}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <DashboardConsole logs={logs} />
 
       </main>
 
@@ -791,3 +778,36 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
     </div>
   );
 }
+
+interface DashboardConsoleProps {
+  logs: { time: string; text: string }[];
+}
+
+const DashboardConsole = memo(function DashboardConsole({ logs }: DashboardConsoleProps) {
+  return (
+    <div className="border border-green-900 rounded bg-black/90 p-5 flex flex-col min-h-[150px] shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] font-mono">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-green-950/80 text-[10px] flex-shrink-0">
+        <span className="flex items-center gap-1.5 text-white">
+          <Terminal className="w-4 h-4 text-green-400" /> SYSTEM DIAGNOSTIC TELEMETRY LOGS
+        </span>
+        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
+      </div>
+      
+      <div className="flex-1 overflow-y-auto space-y-1.5 text-[10px] leading-relaxed max-h-[150px] pr-2">
+        {logs.map((log, index) => (
+          <div key={index} className="flex gap-2">
+            <span className="text-green-700">[{log.time}]</span>
+            <span className={`${
+              log.text.startsWith("[+") ? "text-emerald-400" : 
+              log.text.startsWith("[!") ? "text-yellow-400" : 
+              log.text.startsWith("[-") ? "text-red-400" : 
+              "text-green-500"
+            }`}>
+              {log.text}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});

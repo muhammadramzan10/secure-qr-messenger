@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, memo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { 
   bufToBase64, 
@@ -55,6 +55,39 @@ interface Message {
   decryptionError?: boolean;
 }
 
+const ChatConsole = memo(function ChatConsole({ logs }: { logs: { time: string; text: string }[] }) {
+  return (
+    <div className="lg:col-span-3 border border-green-900 rounded bg-black/90 p-3 md:p-4 flex flex-col h-[300px] lg:h-[650px] shadow-[inset_0_0_12px_rgba(0,0,0,0.85)]">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-green-950/80 text-[10px] flex-shrink-0">
+        <span className="flex items-center gap-1.5 text-white font-bold uppercase">
+          <Terminal className="w-3.5 h-3.5 text-green-400 animate-pulse" /> TELEMETRY OUTPUT
+        </span>
+        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-2 text-[10px] leading-relaxed font-mono">
+        {logs.map((log, index) => (
+          <div key={index} className="flex gap-1">
+            <span className="text-green-700 flex-shrink-0">[{log.time}]</span>
+            <span className={`${
+              log.text.startsWith("[+") ? "text-emerald-400" : 
+              log.text.startsWith("[!") ? "text-yellow-400" : 
+              log.text.startsWith("[-") ? "text-red-400" : 
+              "text-green-500"
+            }`}>
+              {log.text}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-green-950 mt-3 pt-3 text-[9px] text-green-800 text-center flex-shrink-0">
+        NODE SECURITY PROFILE: RSA-OAEP-2048
+      </div>
+    </div>
+  );
+});
+
 export default function ChatPage() {
   const supabase = createClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -85,14 +118,20 @@ export default function ChatPage() {
   const [sendLoading, setSendLoading] = useState(false);
   
   // UI logging feed
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<"directory" | "chat">("directory");
+
+  const createLog = (text: string) => ({
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    text
+  });
 
   // Initialize page, get user session and profile details
   useEffect(() => {
     setLogs([
-      "SYSTEM INITIATED — ASYMMETRIC E2E messaging grid",
-      "[*] Fetching node auth identity..."
+      createLog("SYSTEM INITIATED — ASYMMETRIC E2E messaging grid"),
+      createLog("[*] Fetching node auth identity...")
     ]);
     checkAuthAndLoadProfile();
   }, []);
@@ -103,7 +142,7 @@ export default function ChatPage() {
       setUser(user);
       
       if (user) {
-        setLogs((prev) => [...prev, `[+] Node identity authenticated: ${user.email}`]);
+        setLogs((prev) => [...prev, createLog(`[+] Node identity authenticated: ${user.email}`)]);
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
@@ -113,16 +152,16 @@ export default function ChatPage() {
         if (!error && data) {
           setProfile(data);
           if (data.public_key && data.private_key_encrypted) {
-            setLogs((prev) => [...prev, "[+] Crypto keys detected. Awaiting private key decrypt passphrase."]);
+            setLogs((prev) => [...prev, createLog("[+] Crypto keys detected. Awaiting private key decrypt passphrase.")]);
           } else {
-            setLogs((prev) => [...prev, "[!] ALERT: Node is UNKEYED. Dynamic asymmetric key pair generation required."]);
+            setLogs((prev) => [...prev, createLog("[!] ALERT: Node is UNKEYED. Dynamic asymmetric key pair generation required.")]);
           }
         }
       } else {
-        setLogs((prev) => [...prev, "[-] Authentication check failed. Guest connection disallowed."]);
+        setLogs((prev) => [...prev, createLog("[-] Authentication check failed. Guest connection disallowed.")]);
       }
     } catch (err: any) {
-      setLogs((prev) => [...prev, `[-] Error checking identity: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Error checking identity: ${err.message}`)]);
     } finally {
       setLoadingProfile(false);
     }
@@ -137,26 +176,26 @@ export default function ChatPage() {
     setProvisionError(null);
     setLogs((prev) => [
       ...prev,
-      "[*] Initializing asymmetric key derivation generator...",
-      "[*] Spawning RSA-OAEP-2048 client key generation thread..."
+      createLog("[*] Initializing asymmetric key derivation generator..."),
+      createLog("[*] Spawning RSA-OAEP-2048 client key generation thread...")
     ]);
 
     try {
       // 1. Generate new asymmetric keypair
       const keypair = await generateAsymmetricKeyPair();
-      setLogs((prev) => [...prev, "[+] Key pair generated (RSA-OAEP 2048-bit with SHA-256)."]);
+      setLogs((prev) => [...prev, createLog("[+] Key pair generated (RSA-OAEP 2048-bit with SHA-256).")]);
 
       // 2. Export public key as JWK string
       const pubKeyString = await exportPublicKey(keypair.publicKey);
-      setLogs((prev) => [...prev, "[*] Exporting public key matrix..."]);
+      setLogs((prev) => [...prev, createLog("[*] Exporting public key matrix...")]);
 
       // 3. Encrypt and export private key using password
-      setLogs((prev) => [...prev, "[*] Encrypting private key client-side with PBKDF2 derived key..."]);
+      setLogs((prev) => [...prev, createLog("[*] Encrypting private key client-side with PBKDF2 derived key...")]);
       const encPrivateKey = await exportPrivateKey(keypair.privateKey, provisionPassword);
-      setLogs((prev) => [...prev, "[+] Private key successfully sealed."]);
+      setLogs((prev) => [...prev, createLog("[+] Private key successfully sealed.")]);
 
       // 4. Update profiles table
-      setLogs((prev) => [...prev, "[*] Uploading crypto metadata to profile registry..."]);
+      setLogs((prev) => [...prev, createLog("[*] Uploading crypto metadata to profile registry...")]);
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
@@ -172,13 +211,13 @@ export default function ChatPage() {
         throw new Error(updateError.message);
       }
 
-      setLogs((prev) => [...prev, "[+] Profile provisioned successfully! Refreshing status..."]);
+      setLogs((prev) => [...prev, createLog("[+] Profile provisioned successfully! Refreshing status...")]);
       
       // Reload profile
       await checkAuthAndLoadProfile();
     } catch (err: any) {
       setProvisionError(err.message || "Failed to provision keys.");
-      setLogs((prev) => [...prev, `[-] Key generation aborted: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Key generation aborted: ${err.message}`)]);
     } finally {
       setProvisionLoading(false);
     }
@@ -193,8 +232,8 @@ export default function ChatPage() {
     setUnlockError(null);
     setLogs((prev) => [
       ...prev,
-      "[*] Loading encrypted private key packet from database profile...",
-      "[*] Deriving decrypt key from passphrase (PBKDF2 SHA-256)..."
+      createLog("[*] Loading encrypted private key packet from database profile..."),
+      createLog("[*] Deriving decrypt key from passphrase (PBKDF2 SHA-256)...")
     ]);
 
     try {
@@ -208,8 +247,8 @@ export default function ChatPage() {
 
       setLogs((prev) => [
         ...prev,
-        "[+] Key derived. Signature integrity verified.",
-        "[+] Private key unlocked in client-side secure RAM."
+        createLog("[+] Key derived. Signature integrity verified."),
+        createLog("[+] Private key unlocked in client-side secure RAM.")
       ]);
 
       setUnlockedPrivateKey(privKey);
@@ -220,8 +259,8 @@ export default function ChatPage() {
       setUnlockError("Incorrect password. Unable to unlock your chat keys.");
       setLogs((prev) => [
         ...prev, 
-        `[-] Decryption failed: ${err.message}`,
-        "[-] Passphrase rejected. Ephemeral grid access denied."
+        createLog(`[-] Decryption failed: ${err.message}`),
+        createLog("[-] Passphrase rejected. Ephemeral grid access denied.")
       ]);
     } finally {
       setUnlockLoading(false);
@@ -231,7 +270,7 @@ export default function ChatPage() {
   // Fetch registered profiles for directory sidebar
   const fetchProfiles = async () => {
     if (!user) return;
-    setLogs((prev) => [...prev, "[*] Querying network profiles registry..."]);
+    setLogs((prev) => [...prev, createLog("[*] Querying network profiles registry...")]);
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -241,9 +280,9 @@ export default function ChatPage() {
       if (error) throw error;
 
       setProfiles(data || []);
-      setLogs((prev) => [...prev, `[+] Loaded ${data?.length || 0} node directory coordinates.`]);
+      setLogs((prev) => [...prev, createLog(`[+] Loaded ${data?.length || 0} node directory coordinates.`)]);
     } catch (err: any) {
-      setLogs((prev) => [...prev, `[-] Directory query failed: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Directory query failed: ${err.message}`)]);
     }
   };
 
@@ -311,7 +350,7 @@ export default function ChatPage() {
       setMessages(decryptedList);
       scrollToBottom();
     } catch (err: any) {
-      setLogs((prev) => [...prev, `[-] Message sync failed: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Message sync failed: ${err.message}`)]);
     } finally {
       setMessagesLoading(false);
     }
@@ -320,8 +359,9 @@ export default function ChatPage() {
   // Trigger message load when selected partner changes
   useEffect(() => {
     if (selectedPartner) {
-      setLogs((prev) => [...prev, `[*] Securing channel with node: ${selectedPartner.full_name || selectedPartner.email}`]);
+      setLogs((prev) => [...prev, createLog(`[*] Securing channel with node: ${selectedPartner.full_name || selectedPartner.email}`)]);
       fetchMessages();
+      setActiveTab("chat");
     }
   }, [selectedPartner]);
 
@@ -329,7 +369,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!user || !selectedPartner || !unlockedPrivateKey) return;
 
-    setLogs((prev) => [...prev, "[*] Establishing real-time event hook..."]);
+    setLogs((prev) => [...prev, createLog("[*] Establishing real-time event hook...")]);
     
     const channel = supabase
       .channel(`realtime_chat_${selectedPartner.id}`)
@@ -343,7 +383,7 @@ export default function ChatPage() {
             (newMsg.user_id === user.id && newMsg.recipient_id === selectedPartner.id) ||
             (newMsg.user_id === selectedPartner.id && newMsg.recipient_id === user.id)
           ) {
-            setLogs((prev) => [...prev, "[+] Real-time packet packet detected. Syncing chat history..."]);
+            setLogs((prev) => [...prev, createLog("[+] Real-time packet detected. Syncing chat history...")]);
             fetchMessages();
           }
         }
@@ -351,14 +391,14 @@ export default function ChatPage() {
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setRealtimeConnected(true);
-          setLogs((prev) => [...prev, "[+] Real-time subscription synchronized successfully."]);
+          setLogs((prev) => [...prev, createLog("[+] Real-time subscription synchronized successfully.")]);
         } else {
           setRealtimeConnected(false);
         }
       });
 
     return () => {
-      setLogs((prev) => [...prev, "[*] Dismantling real-time channel."]);
+      setLogs((prev) => [...prev, createLog("[*] Dismantling real-time channel.")]);
       supabase.removeChannel(channel);
     };
   }, [selectedPartner, unlockedPrivateKey]);
@@ -376,12 +416,12 @@ export default function ChatPage() {
     if (!newMessage.trim() || !selectedPartner || !profile || sendLoading) return;
 
     if (!selectedPartner.public_key) {
-      setLogs((prev) => [...prev, "[-] SEND ERROR: Recipient has no registered public key."]);
+      setLogs((prev) => [...prev, createLog("[-] SEND ERROR: Recipient has no registered public key.")]);
       return;
     }
 
     setSendLoading(true);
-    setLogs((prev) => [...prev, "[*] Packaging asymmetric message payload..."]);
+    setLogs((prev) => [...prev, createLog("[*] Packaging asymmetric message payload...")]);
 
     try {
       // Import public keys
@@ -432,7 +472,7 @@ export default function ChatPage() {
       });
 
       // 6. Transmit to Supabase
-      setLogs((prev) => [...prev, "[*] Uploading encrypted envelope to database grid..."]);
+      setLogs((prev) => [...prev, createLog("[*] Uploading encrypted envelope to database grid...")]);
       
       const { error: sendError } = await supabase
         .from("messages")
@@ -452,12 +492,12 @@ export default function ChatPage() {
 
       if (sendError) throw sendError;
 
-      setLogs((prev) => [...prev, "[+] Transmission complete. Encrypted logs verified."]);
+      setLogs((prev) => [...prev, createLog("[+] Transmission complete. Encrypted logs verified.")]);
       setNewMessage("");
       fetchMessages();
 
     } catch (err: any) {
-      setLogs((prev) => [...prev, `[-] Send sequence aborted: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Send sequence aborted: ${err.message}`)]);
     } finally {
       setSendLoading(false);
     }
@@ -629,10 +669,36 @@ export default function ChatPage() {
         </main>
       ) : (
         /* MAIN CHAT INTERFACE */
-        <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 z-20 min-h-[500px]">
+        <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-8 z-20 min-h-[500px] flex flex-col gap-6">
+          
+          {/* Mobile Tab Toggle */}
+          <div className="flex lg:hidden border border-green-900 rounded bg-zinc-950/90 overflow-hidden">
+            <button
+              onClick={() => setActiveTab("directory")}
+              className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === "directory"
+                  ? "bg-green-500/10 text-green-400 border-b-2 border-green-500"
+                  : "text-green-700 hover:text-green-500"
+              }`}
+            >
+              <User className="w-3.5 h-3.5" /> DIRECTORY
+            </button>
+            <button
+              onClick={() => setActiveTab("chat")}
+              className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === "chat"
+                  ? "bg-green-500/10 text-green-400 border-b-2 border-green-500"
+                  : "text-green-700 hover:text-green-500"
+              }`}
+            >
+              <Send className="w-3.5 h-3.5" /> CHAT
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
           
           {/* LEFT COLUMN: Sidebar Nodes (4 cols) */}
-          <div className="lg:col-span-4 border border-green-900 rounded bg-zinc-950/90 flex flex-col h-[650px]">
+          <div className={`lg:col-span-4 border border-green-900 rounded bg-zinc-950/90 flex flex-col h-[500px] lg:h-[650px] ${activeTab !== "directory" ? "hidden lg:flex" : "flex"}`}>
             {/* Sidebar search header */}
             <div className="p-4 border-b border-green-950 space-y-3 flex-shrink-0">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -702,15 +768,24 @@ export default function ChatPage() {
           </div>
 
           {/* MIDDLE COLUMN: Chat Window (5 cols) */}
-          <div className="lg:col-span-5 border border-green-900 rounded bg-zinc-950/90 flex flex-col h-[650px] relative">
+          <div className={`lg:col-span-5 border border-green-900 rounded bg-zinc-950/90 flex flex-col h-[500px] lg:h-[650px] relative ${activeTab !== "chat" ? "hidden lg:flex" : "flex"}`}>
             
             {selectedPartner ? (
               <>
                 {/* Chat Partner Header */}
-                <div className="p-4 border-b border-green-950 bg-black/40 flex-shrink-0 flex items-center justify-between">
-                  <div>
+                <div className="p-3 md:p-4 border-b border-green-950 bg-black/40 flex-shrink-0 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      onClick={() => setActiveTab("directory")}
+                      className="lg:hidden p-1.5 border border-green-900 rounded hover:border-green-500 text-green-600 hover:text-green-400 transition-all cursor-pointer flex-shrink-0"
+                      title="Back to directory"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="min-w-0">
                     <h3 className="text-xs font-bold text-white uppercase">{selectedPartner.full_name || "Secure Chat Partner"}</h3>
                     <p className="text-[9px] text-green-700 truncate max-w-[200px]">{selectedPartner.email}</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -805,35 +880,9 @@ export default function ChatPage() {
           </div>
 
           {/* RIGHT COLUMN: Chat Telemetry Logger (3 cols) */}
-          <div className="lg:col-span-3 border border-green-900 rounded bg-black/90 p-4 flex flex-col h-[650px] shadow-[inset_0_0_12px_rgba(0,0,0,0.85)]">
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-[10px] flex-shrink-0">
-              <span className="flex items-center gap-1.5 text-white font-bold uppercase">
-                <Terminal className="w-3.5 h-3.5 text-green-400 animate-pulse" /> TELEMETRY OUTPUT
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
-            </div>
+          <ChatConsole logs={logs} />
 
-            <div className="flex-1 overflow-y-auto space-y-2 text-[10px] leading-relaxed max-h-[500px] font-mono">
-              {logs.map((log, index) => (
-                <div key={index} className="flex gap-1">
-                  <span className="text-green-700">[{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
-                  <span className={`${
-                    (log || "").startsWith("[+") ? "text-emerald-400" : 
-                    (log || "").startsWith("[!") ? "text-yellow-400" : 
-                    (log || "").startsWith("[-") ? "text-red-400" : 
-                    "text-green-500"
-                  }`}>
-                    {log || ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t border-green-950 mt-3 pt-3 text-[9px] text-green-800 text-center flex-shrink-0">
-              NODE SECURITY PROFILE: RSA-OAEP-2048
-            </div>
           </div>
-
         </main>
       )}
 

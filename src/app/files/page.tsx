@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { 
   bufToBase64, 
@@ -50,6 +50,39 @@ interface FileRecord {
   decryptionError?: boolean;
 }
 
+const FilesConsole = memo(function FilesConsole({ logs }: { logs: { time: string; text: string }[] }) {
+  return (
+    <div className="border border-green-900 rounded bg-black/90 p-4 md:p-6 flex-1 flex flex-col shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]">
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-xs">
+        <span className="flex items-center gap-2 text-white">
+          <Terminal className="w-4 h-4 text-green-400" /> VIRTUAL CONSOLE PIPELINE
+        </span>
+        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-2 text-[11px] leading-relaxed max-h-[300px] lg:max-h-none font-mono">
+        {logs.map((log, index) => (
+          <div key={index} className="flex gap-2">
+            <span className="text-green-700 flex-shrink-0">[{log.time}]</span>
+            <span className={`${
+              log.text.startsWith("[+") ? "text-emerald-400" : 
+              log.text.startsWith("[!") ? "text-yellow-400" : 
+              log.text.startsWith("[-") ? "text-red-400" : 
+              "text-green-500"
+            }`}>
+              {log.text}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-green-950 mt-4 pt-4 text-[10px] text-green-800 text-center">
+        SECURED FILE BLOCK GRID
+      </div>
+    </div>
+  );
+});
+
 export default function FilesPage() {
   const supabase = createClient();
   const [user, setUser] = useState<any | null>(null);
@@ -78,12 +111,17 @@ export default function FilesPage() {
   const [copied, setCopied] = useState(false);
 
   // Console log state
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
+
+  const createLog = (text: string) => ({
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    text
+  });
 
   useEffect(() => {
     setLogs([
-      "SYSTEM INITIATED — SYMMETRIC FILE PACKAGER v1.0.0",
-      "[*] Fetching active node authorization..."
+      createLog("SYSTEM INITIATED — SYMMETRIC FILE PACKAGER v1.0.0"),
+      createLog("[*] Fetching active node authorization...")
     ]);
     checkUser();
   }, []);
@@ -93,13 +131,13 @@ export default function FilesPage() {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
       if (user) {
-        setLogs((prev) => [...prev, `[+] Node identity verified: ${user.email}`]);
+        setLogs((prev) => [...prev, createLog(`[+] Node identity verified: ${user.email}`)]);
         fetchFileList(user.id);
       } else {
-        setLogs((prev) => [...prev, "[!] ALERT: Unauthenticated node connection. Access Forbidden."]);
+        setLogs((prev) => [...prev, createLog("[!] ALERT: Unauthenticated node connection. Access Forbidden.")]);
       }
     } catch (err: any) {
-      setLogs((prev) => [...prev, `[-] Identity check error: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Identity check error: ${err.message}`)]);
     } finally {
       setAuthLoading(false);
     }
@@ -117,7 +155,7 @@ export default function FilesPage() {
       if (error) throw error;
       setFiles(data || []);
     } catch (err: any) {
-      setLogs((prev) => [...prev, `[-] Failed to fetch files ledger: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Failed to fetch files ledger: ${err.message}`)]);
     } finally {
       setListLoading(false);
     }
@@ -132,7 +170,7 @@ export default function FilesPage() {
       } else {
         setUploadError(null);
         setSelectedFile(file);
-        setLogs((prev) => [...prev, `[*] Loaded local file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`]);
+        setLogs((prev) => [...prev, createLog(`[*] Loaded local file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`)]);
       }
     }
   };
@@ -146,13 +184,13 @@ export default function FilesPage() {
     setUploadError(null);
     setLogs((prev) => [
       ...prev,
-      "[*] Initiating file encryption pipeline...",
-      `[*] Input size: ${selectedFile.size} bytes.`
+      createLog("[*] Initiating file encryption pipeline..."),
+      createLog(`[*] Input size: ${selectedFile.size} bytes.`)
     ]);
 
     try {
       // 1. Read file to array buffer
-      setLogs((prev) => [...prev, "[*] Reading binary payload into buffer memory..."]);
+      setLogs((prev) => [...prev, createLog("[*] Reading binary payload into buffer memory...")]);
       const fileDataBuffer = await selectedFile.arrayBuffer();
 
       // 2. Generate random cryptographic materials
@@ -162,11 +200,11 @@ export default function FilesPage() {
       const mimetypeIvBytes = crypto.getRandomValues(new Uint8Array(12));
 
       // 3. Derive key using PBKDF2
-      setLogs((prev) => [...prev, "[*] Deriving key from password (PBKDF2 SHA-256)..."]);
+      setLogs((prev) => [...prev, createLog("[*] Deriving key from password (PBKDF2 SHA-256)...")]);
       const key = await deriveKeyFromPassword(passphrase, saltBytes);
 
       // 4. Encrypt file body (AES-GCM-256)
-      setLogs((prev) => [...prev, "[*] Symmetrically encrypting file buffer (AES-GCM-256)..."]);
+      setLogs((prev) => [...prev, createLog("[*] Symmetrically encrypting file buffer (AES-GCM-256)...")]);
       const encryptedFileBuf = await crypto.subtle.encrypt(
         { name: "AES-GCM", iv: fileIvBytes as BufferSource },
         key,
@@ -177,7 +215,7 @@ export default function FilesPage() {
       const fileAuthTagBytes = encFileArr.slice(-16);
 
       // 5. Encrypt metadata (filename, mime type) under the same key
-      setLogs((prev) => [...prev, "[*] Encrypting file name and mime type strings..."]);
+      setLogs((prev) => [...prev, createLog("[*] Encrypting file name and mime type strings...")]);
       const encoder = new TextEncoder();
       
       const encryptedFilenameBuf = await crypto.subtle.encrypt(
@@ -200,7 +238,7 @@ export default function FilesPage() {
 
       // 6. Upload encrypted file blob to Supabase Storage
       const storageFilename = `${crypto.randomUUID()}.bin`;
-      setLogs((prev) => [...prev, `[*] Transmitting encrypted blob to storage: ${storageFilename}...`]);
+      setLogs((prev) => [...prev, createLog(`[*] Transmitting encrypted blob to storage: ${storageFilename}...`)]);
       
       const fileBlob = new Blob([encFileArr], { type: "application/octet-stream" });
       const { error: storageError } = await supabase.storage
@@ -213,7 +251,7 @@ export default function FilesPage() {
 
       // 7. Register metadata inside SQL database
       const fileToken = crypto.randomUUID();
-      setLogs((prev) => [...prev, "[*] Saving secure metadata packet in files table..."]);
+      setLogs((prev) => [...prev, createLog("[*] Saving secure metadata packet in files table...")]);
       
       const { error: dbError } = await supabase
         .from("files")
@@ -241,8 +279,8 @@ export default function FilesPage() {
 
       setLogs((prev) => [
         ...prev,
-        "[+] File fully packaged, encrypted, and saved on grid.",
-        "[!] CRYPTOGRAPHIC LEDGER UPDATED NOMINAL."
+        createLog("[+] File fully packaged, encrypted, and saved on grid."),
+        createLog("[!] CRYPTOGRAPHIC LEDGER UPDATED NOMINAL.")
       ]);
 
       // Construct decrypt URL & QR
@@ -268,7 +306,7 @@ export default function FilesPage() {
 
     } catch (err: any) {
       setUploadError("Something went wrong while encrypting or transferring your file. Please try again.");
-      setLogs((prev) => [...prev, `[-] FILE PROCESSING ABORTED: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] FILE PROCESSING ABORTED: ${err.message}`)]);
     } finally {
       setUploadLoading(false);
     }
@@ -279,7 +317,7 @@ export default function FilesPage() {
     e.preventDefault();
     if (!unlockPassphrase || files.length === 0) return;
 
-    setLogs((prev) => [...prev, "[*] Handshaking and decrypting directories..."]);
+    setLogs((prev) => [...prev, createLog("[*] Handshaking and decrypting directories...")]);
     const textDecoder = new TextDecoder();
     
     const decryptedList = await Promise.all(
@@ -338,14 +376,14 @@ export default function FilesPage() {
 
     setFiles(decryptedList);
     setIsUnlocked(true);
-    setLogs((prev) => [...prev, "[+] Decryption pass complete. Directory names loaded."]);
+    setLogs((prev) => [...prev, createLog("[+] Decryption pass complete. Directory names loaded.")]);
   };
 
   // Delete file mapping and storage object
   const handleDeleteFile = async (fileRecord: FileRecord) => {
     if (!confirm("Are you sure you want to permanently shred this encrypted file record from the database and storage grids?")) return;
 
-    setLogs((prev) => [...prev, `[*] Deleting storage object: ${fileRecord.storage_path}...`]);
+    setLogs((prev) => [...prev, createLog(`[*] Deleting storage object: ${fileRecord.storage_path}...`)]);
     try {
       // 1. Remove from Storage
       const { error: storageError } = await supabase.storage
@@ -366,12 +404,12 @@ export default function FilesPage() {
         throw new Error(`Database shredding failed: ${dbError.message}`);
       }
 
-      setLogs((prev) => [...prev, "[+] File and database coordinates shredded successfully."]);
+      setLogs((prev) => [...prev, createLog("[+] File and database coordinates shredded successfully.")]);
       if (user) {
         fetchFileList(user.id);
       }
     } catch (err: any) {
-      setLogs((prev) => [...prev, `[-] Shredding sequence aborted: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] Shredding sequence aborted: ${err.message}`)]);
     }
   };
 
@@ -380,7 +418,7 @@ export default function FilesPage() {
       navigator.clipboard.writeText(shareFile.url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      setLogs((prev) => [...prev, "[+] Decryption URL copied to clipboard."]);
+      setLogs((prev) => [...prev, createLog("[+] Decryption URL copied to clipboard.")]);
     }
   };
 
@@ -652,35 +690,7 @@ export default function FilesPage() {
           )}
 
           {/* Telemetry Console */}
-          <div className="border border-green-900 rounded bg-black/90 p-6 flex-1 flex flex-col shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]">
-            
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-xs">
-              <span className="flex items-center gap-2 text-white">
-                <Terminal className="w-4 h-4 text-green-400" /> VIRTUAL CONSOLE PIPELINE
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2 text-[11px] leading-relaxed max-h-[300px] lg:max-h-none font-mono">
-              {logs.map((log, index) => (
-                <div key={index} className="flex gap-2">
-                  <span className="text-green-700">[{new Date().toLocaleTimeString()}]</span>
-                  <span className={`${
-                    (log || "").startsWith("[+") ? "text-emerald-400" : 
-                    (log || "").startsWith("[!") ? "text-yellow-400" : 
-                    (log || "").startsWith("[-") ? "text-red-400" : 
-                    "text-green-500"
-                  }`}>
-                    {log || ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t border-green-950 mt-4 pt-4 text-[10px] text-green-800 text-center">
-              SECURED FILE BLOCK GRID
-            </div>
-          </div>
+          <FilesConsole logs={logs} />
         </div>
 
       </main>

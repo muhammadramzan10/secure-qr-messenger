@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense, memo } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { 
@@ -37,6 +37,39 @@ interface FileMetadata {
   file_auth_tag: string;
 }
 
+const FileDecryptConsole = memo(function FileDecryptConsole({ logs }: { logs: { time: string; text: string }[] }) {
+  return (
+    <div className="border border-green-900 rounded bg-black/90 p-4 md:p-6 flex-1 flex flex-col shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]">
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-xs">
+        <span className="flex items-center gap-2 text-white">
+          <Terminal className="w-4 h-4 text-green-400" /> PIPELINE DATA STREAM
+        </span>
+        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-2 text-[11px] leading-relaxed max-h-[300px] lg:max-h-none font-mono">
+        {logs.map((log, index) => (
+          <div key={index} className="flex gap-2">
+            <span className="text-green-700 flex-shrink-0">[{log.time}]</span>
+            <span className={`${
+              log.text.startsWith("[+") ? "text-emerald-400" : 
+              log.text.startsWith("[!") ? "text-yellow-400" : 
+              log.text.startsWith("[-") ? "text-red-400" : 
+              "text-green-500"
+            }`}>
+              {log.text}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-green-950 mt-4 pt-4 text-[10px] text-green-800 text-center">
+        DECRYPTION GRID NODE
+      </div>
+    </div>
+  );
+});
+
 function FileDecryptContent() {
   const supabase = createClient();
   const searchParams = useSearchParams();
@@ -61,12 +94,17 @@ function FileDecryptContent() {
   const [decryptedFilename, setDecryptedFilename] = useState("");
   
   // Console logs feed
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
+
+  const createLog = (text: string) => ({
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    text
+  });
 
   useEffect(() => {
     setLogs([
-      "SYSTEM INITIATED — FILE DEPACKAGING DECK",
-      "[*] Standing by for secure file token submission..."
+      createLog("SYSTEM INITIATED — FILE DEPACKAGING DECK"),
+      createLog("[*] Standing by for secure file token submission...")
     ]);
   }, []);
 
@@ -74,7 +112,7 @@ function FileDecryptContent() {
     if (urlToken) {
       setActiveToken(urlToken);
       setTokenInput(urlToken);
-      setLogs((prev) => [...prev, `[*] Decryption token detected in URL: ${urlToken}`]);
+      setLogs((prev) => [...prev, createLog(`[*] Decryption token detected in URL: ${urlToken}`)]);
     }
   }, [urlToken]);
 
@@ -97,7 +135,7 @@ function FileDecryptContent() {
     } catch (_) {}
 
     setActiveToken(extractedToken);
-    setLogs((prev) => [...prev, `[*] Manual token committed: ${extractedToken}`]);
+    setLogs((prev) => [...prev, createLog(`[*] Manual token committed: ${extractedToken}`)]);
   };
 
   // Step 1: Handshake with Supabase to download SQL record
@@ -108,7 +146,7 @@ function FileDecryptContent() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev,
-      `[*] Handshaking with DB registry for token: ${activeToken}...`
+      createLog(`[*] Handshaking with DB registry for token: ${activeToken}...`)
     ]);
 
     try {
@@ -124,16 +162,16 @@ function FileDecryptContent() {
 
       setLogs((prev) => [
         ...prev,
-        "[+] Handshake completed. SQL metadata block parsed.",
-        `    - Size: ${(data.file_size / 1024).toFixed(1)} KB`,
-        "[*] Ready to mount keypass for decryption..."
+        createLog("[+] Handshake completed. SQL metadata block parsed."),
+        createLog(`    - Size: ${(data.file_size / 1024).toFixed(1)} KB`),
+        createLog("[*] Ready to mount keypass for decryption...")
       ]);
 
       setFileRecord(data);
       setStep(2);
     } catch (err: any) {
       setErrorMsg("This file link is invalid, has expired, or has been deleted.");
-      setLogs((prev) => [...prev, `[-] HANDSHAKE FAILED: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] HANDSHAKE FAILED: ${err.message}`)]);
     } finally {
       setLoading(false);
     }
@@ -148,8 +186,8 @@ function FileDecryptContent() {
     setErrorMsg(null);
     setLogs((prev) => [
       ...prev,
-      "[*] Launching file download stream from cloud storage...",
-      `[*] Storage Target: ${fileRecord.storage_path}`
+      createLog("[*] Launching file download stream from cloud storage..."),
+      createLog(`[*] Storage Target: ${fileRecord.storage_path}`)
     ]);
 
     try {
@@ -162,15 +200,15 @@ function FileDecryptContent() {
         throw new Error(`Failed to download storage artifact: ${storageError?.message}`);
       }
 
-      setLogs((prev) => [...prev, "[+] Encrypted binary blob downloaded successfully."]);
+      setLogs((prev) => [...prev, createLog("[+] Encrypted binary blob downloaded successfully.")]);
 
       // 2. Derive key from passcode using the stored salt
-      setLogs((prev) => [...prev, "[*] Deriving cryptographic key from passphrase (PBKDF2 SHA-256)..."]);
+      setLogs((prev) => [...prev, createLog("[*] Deriving cryptographic key from passphrase (PBKDF2 SHA-256)...")]);
       const saltBytes = base64ToBuf(fileRecord.salt);
       const key = await deriveKeyFromPassword(passphrase, saltBytes);
 
       // 3. Decrypt the filename and MIME type
-      setLogs((prev) => [...prev, "[*] Decrypting file envelope metadata..."]);
+      setLogs((prev) => [...prev, createLog("[*] Decrypting file envelope metadata...")]);
       const textDecoder = new TextDecoder();
 
       // Decrypt Filename
@@ -207,13 +245,13 @@ function FileDecryptContent() {
 
       setLogs((prev) => [
         ...prev,
-        "[+] Envelope decrypted successfully:",
-        `    - Filename: ${filename}`,
-        `    - MIME Type: ${mime}`
+        createLog("[+] Envelope decrypted successfully:"),
+        createLog(`    - Filename: ${filename}`),
+        createLog(`    - MIME Type: ${mime}`)
       ]);
 
       // 4. Decrypt raw file body
-      setLogs((prev) => [...prev, "[*] Executing binary AES-GCM decryption matrix..."]);
+      setLogs((prev) => [...prev, createLog("[*] Executing binary AES-GCM decryption matrix...")]);
       const fileArrayBuffer = await blobData.arrayBuffer();
       
       const decryptedFileBuffer = await crypto.subtle.decrypt(
@@ -222,7 +260,7 @@ function FileDecryptContent() {
         fileArrayBuffer as BufferSource
       );
 
-      setLogs((prev) => [...prev, "[+] Binary payload decrypted successfully. Reconstituting File Blob..."]);
+      setLogs((prev) => [...prev, createLog("[+] Binary payload decrypted successfully. Reconstituting File Blob...")]);
 
       // 5. Build Blob and trigger browser download save prompt
       const plainBlob = new Blob([decryptedFileBuffer], { type: mime });
@@ -239,15 +277,15 @@ function FileDecryptContent() {
       setDecryptedFilename(filename);
       setLogs((prev) => [
         ...prev,
-        `[+] File download triggered: ${filename}`,
-        "[!] STORAGE TRANSACTIONS RESOLVED NOMINAL."
+        createLog(`[+] File download triggered: ${filename}`),
+        createLog("[!] STORAGE TRANSACTIONS RESOLVED NOMINAL.")
       ]);
 
       setStep(3);
 
     } catch (err: any) {
       setErrorMsg("Incorrect password. The file could not be decrypted.");
-      setLogs((prev) => [...prev, `[-] DECRYPTION ERROR: ${err.message}`]);
+      setLogs((prev) => [...prev, createLog(`[-] DECRYPTION ERROR: ${err.message}`)]);
     } finally {
       setDecrypting(false);
     }
@@ -408,7 +446,7 @@ function FileDecryptContent() {
                       setStep(1);
                       setFileRecord(null);
                       setPassphrase("");
-                      setLogs((prev) => [...prev, "[*] Aborted. local buffers cleared."]);
+                      setLogs((prev) => [...prev, createLog("[*] Aborted. local buffers cleared.")]);
                     }}
                     className="py-3 border border-green-950 hover:border-green-500 text-green-700 hover:text-green-400 font-bold text-xs uppercase tracking-widest transition-all duration-300 rounded flex items-center justify-center gap-2 cursor-pointer"
                   >
@@ -446,7 +484,7 @@ function FileDecryptContent() {
                       setFileRecord(null);
                       setPassphrase("");
                       setDecryptedFilename("");
-                      setLogs((prev) => [...prev, "[*] Gateway reset. Waiting for next token."]);
+                      setLogs((prev) => [...prev, createLog("[*] Gateway reset. Waiting for next token.")]);
                     }}
                     className="px-6 py-2.5 border border-green-500 hover:bg-green-500 hover:text-black font-bold text-xs uppercase tracking-wider transition-all duration-300 rounded cursor-pointer"
                   >
@@ -461,35 +499,7 @@ function FileDecryptContent() {
 
         {/* Right Column: Handshake logs */}
         <div className="lg:col-span-5 flex flex-col min-h-[300px] lg:h-auto gap-6">
-          <div className="border border-green-900 rounded bg-black/90 p-6 flex-1 flex flex-col shadow-[inset_0_0_15px_rgba(0,0,0,0.85)]">
-            
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-green-950/80 text-xs">
-              <span className="flex items-center gap-2 text-white">
-                <Terminal className="w-4 h-4 text-green-400" /> PIPELINE DATA STREAM
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2 text-[11px] leading-relaxed max-h-[400px] lg:max-h-none font-mono">
-              {logs.map((log, index) => (
-                <div key={index} className="flex gap-2">
-                  <span className="text-green-700">[{new Date().toLocaleTimeString()}]</span>
-                  <span className={`${
-                    (log || "").startsWith("[+") ? "text-emerald-400" : 
-                    (log || "").startsWith("[!") ? "text-yellow-400" : 
-                    (log || "").startsWith("[-") ? "text-red-400" : 
-                    "text-green-500"
-                  }`}>
-                    {log || ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t border-green-950 mt-4 pt-4 text-[10px] text-green-800 text-center">
-              DECRYPTION GRID NODE
-            </div>
-          </div>
+          <FileDecryptConsole logs={logs} />
         </div>
 
       </main>
