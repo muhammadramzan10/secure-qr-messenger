@@ -253,7 +253,8 @@ export default function ClientHome({ initialTodos, dbError }: ClientHomeProps) {
     let logIndex = 0;
     const interval = setInterval(() => {
       if (logIndex < startupLogs.length) {
-        setLogs((prev) => [...prev, createLog(startupLogs[logIndex])]);
+        const logText = startupLogs[logIndex];
+        setLogs((prev) => [...prev, createLog(logText)]);
         logIndex++;
       } else {
         clearInterval(interval);
@@ -794,19 +795,38 @@ const DashboardConsole = memo(function DashboardConsole({ logs }: DashboardConso
       </div>
       
       <div className="flex-1 overflow-y-auto space-y-1.5 text-[10px] leading-relaxed max-h-[150px] pr-2">
-        {logs.map((log, index) => (
-          <div key={index} className="flex gap-2">
-            <span className="text-green-700">[{log.time}]</span>
-            <span className={`${
-              log.text.startsWith("[+") ? "text-emerald-400" : 
-              log.text.startsWith("[!") ? "text-yellow-400" : 
-              log.text.startsWith("[-") ? "text-red-400" : 
-              "text-green-500"
-            }`}>
-              {log.text}
-            </span>
-          </div>
-        ))}
+        {logs.map((log, index) => {
+          if (!log) return null;
+          
+          let time = "";
+          let text = "";
+          
+          if (typeof log === "object") {
+            time = String(log.time || "");
+            text = String(log.text || "");
+          } else {
+            text = String(log);
+          }
+          
+          if (!text) {
+            console.error("DashboardConsole: Found invalid log entry at index", index, JSON.stringify(log), "ALL LOGS:", JSON.stringify(logs));
+            text = "[!] EMPTY LOG VALUE";
+          }
+          
+          return (
+            <div key={index} className="flex gap-2">
+              <span className="text-green-700">[{time}]</span>
+              <span className={`${
+                text.startsWith("[+") ? "text-emerald-400" : 
+                text.startsWith("[!") ? "text-yellow-400" : 
+                text.startsWith("[-") ? "text-red-400" : 
+                "text-green-500"
+              }`}>
+                {text}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
